@@ -83,7 +83,7 @@ const generateSecureJWT = (userId: number, email: string): string => {
   return jwt.sign(payload, jwtSecret, {
     expiresIn: process.env.JWT_EXPIRES_IN || '1h', // Shorter expiration for security
     algorithm: 'HS256'
-  });
+  } as jwt.SignOptions);
 };
 
 // Track failed login attempts
@@ -273,7 +273,7 @@ router.post('/register',
         }
       });
     } catch (error) {
-      logError(error, 'User Registration', undefined);
+      logError('User Registration', (error as Error).message, undefined);
       throw createDatabaseError('Registration failed');
     } finally {
       connection.release();
@@ -375,7 +375,7 @@ router.post('/login',
         }
       });
     } catch (error) {
-      logError(error, 'User Login', undefined);
+      logError('User Login', (error as Error).message, undefined);
       throw createDatabaseError('Login failed');
     } finally {
       connection.release();

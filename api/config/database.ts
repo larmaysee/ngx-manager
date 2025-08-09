@@ -87,7 +87,7 @@ async function createTables(): Promise<void> {
     } catch (error: any) {
       // Index might already exist, ignore duplicate key error
       if (!error.message.includes('Duplicate key name')) {
-        logError('Warning creating users email index:', new Error(error.message));
+        logError('Warning creating users email index:', error.message);
       }
     }
 
@@ -174,8 +174,8 @@ async function insertDefaultData(connection: mysql.PoolConnection): Promise<void
 
       console.log(`✅ Default admin user created (${defaultEmail} / ${defaultPassword})`);
     }
-  } catch (error) {
-    logError('❌ Failed to insert default data:', error);
+  } catch (error: any) {
+    logError('❌ Failed to insert default data:', error.message || error);
   }
 }
 
@@ -232,8 +232,8 @@ export async function runMigrations(): Promise<void> {
     } finally {
       connection.release();
     }
-  } catch (error) {
-    logError('❌ Migration execution failed:', error);
+  } catch (error: any) {
+    logError('❌ Migration execution failed:', error.message || error);
     throw error;
   }
 }

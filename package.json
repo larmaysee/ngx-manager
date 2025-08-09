@@ -6,6 +6,7 @@
   "scripts": {
     "client:dev": "vite",
     "build": "tsc -b && vite build",
+    "build:server": "tsc -b",
     "lint": "eslint .",
     "preview": "vite preview",
     "check": "tsc --noEmit",

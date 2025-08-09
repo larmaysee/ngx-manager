@@ -44,7 +44,7 @@ class CertbotService {
       await execAsync(`${this.certbotPath} --version`);
       return true;
     } catch (error) {
-      logError('Certbot not found or not accessible:', error);
+      logError('Certbot not found or not accessible:', (error as Error).message);
       return false;
     }
   }
@@ -62,7 +62,7 @@ class CertbotService {
 
       console.log('Certbot directories initialized');
     } catch (error) {
-      logError('Error initializing certbot directories:', error);
+      logError('Error initializing certbot directories:', (error as Error).message);
       throw error;
     }
   }
@@ -119,7 +119,7 @@ class CertbotService {
     } catch (error) {
       // Ignore if files don't exist
       if (error.code !== 'ENOENT') {
-        logError(`Error removing ACME config for ${domain}:`, error);
+        logError(`Error removing ACME config for ${domain}:`, (error as Error).message);
       }
     }
   }
@@ -190,7 +190,7 @@ class CertbotService {
       }
 
     } catch (error) {
-      logError(`Error obtaining certificate for ${domain}:`, error);
+      logError(`Error obtaining certificate for ${domain}:`, (error as Error).message);
 
       // Clean up temporary config
       await this.removeAcmeConfig(domain);
@@ -256,7 +256,7 @@ class CertbotService {
       };
 
     } catch (error) {
-      logError(`Error getting certificate info for ${domain}:`, error);
+      logError(`Error getting certificate info for ${domain}:`, (error as Error).message);
       return {
         domain,
         status: 'failed'
@@ -311,7 +311,7 @@ class CertbotService {
       return certInfo;
 
     } catch (error) {
-      logError(`Error renewing certificate for ${domain}:`, error);
+      logError(`Error renewing certificate for ${domain}:`, (error as Error).message);
 
       // Update database with failed renewal
       await this.updateCertificateInDatabase(domain, {
@@ -340,7 +340,7 @@ class CertbotService {
 
         const proxies = proxyRows as any[];
         if (proxies.length === 0) {
-          logError(`No proxy found for domain ${domain}`, new Error('Proxy not found'));
+          logError(`No proxy found for domain ${domain}`, 'Proxy not found');
           return;
         }
 
@@ -392,7 +392,7 @@ class CertbotService {
         connection.release();
       }
     } catch (error) {
-      logError(`Error updating certificate in database for ${domain}:`, error);
+      logError(`Error updating certificate in database for ${domain}:`, (error as Error).message);
       throw error;
     }
   }
@@ -428,7 +428,7 @@ class CertbotService {
         connection.release();
       }
     } catch (error) {
-      logError(`Error updating proxy with SSL for ${domain}:`, error);
+      logError(`Error updating proxy with SSL for ${domain}:`, (error as Error).message);
       throw error;
     }
   }
@@ -455,7 +455,7 @@ class CertbotService {
         connection.release();
       }
     } catch (error) {
-      logError('Error getting certificates for renewal:', error);
+      logError('Error getting certificates for renewal:', (error as Error).message);
       return [];
     }
   }
@@ -496,7 +496,7 @@ class CertbotService {
 
       console.log(`Certificate revoked for ${domain}`);
     } catch (error) {
-      logError(`Error revoking certificate for ${domain}:`, error);
+      logError(`Error revoking certificate for ${domain}:`, (error as Error).message);
       throw error;
     }
   }

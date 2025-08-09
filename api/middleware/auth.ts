@@ -80,7 +80,7 @@ export const authenticateToken = async (
 
     const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret || jwtSecret === 'your_jwt_secret_change_this_in_production') {
-      logError('JWT_SECRET not properly configured', new Error('JWT_SECRET not properly configured'));
+      logError('JWT_SECRET not properly configured', 'JWT_SECRET not properly configured');
       res.status(500).json({
         success: false,
         error: 'Server configuration error'
@@ -160,7 +160,7 @@ export const authenticateToken = async (
         error: 'Token expired'
       });
     } else {
-      logError('Authentication error', error as Error, { userId: req.user?.id });
+      logError('Authentication error', (error as Error).message);
       res.status(500).json({
         success: false,
         error: 'Authentication failed'

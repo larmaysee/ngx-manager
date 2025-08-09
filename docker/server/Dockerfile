@@ -14,8 +14,8 @@ RUN pnpm install --frozen-lockfile
 COPY api/ ./api/
 COPY tsconfig.json ./
 
-# Build the application
-RUN pnpm run build
+# Build the server application (TypeScript only)
+RUN pnpm run build:server
 
 # Expose port
 EXPOSE 3001

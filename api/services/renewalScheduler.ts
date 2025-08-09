@@ -82,7 +82,7 @@ export class RenewalScheduler {
       }
 
     } catch (error) {
-      logError('Error during certificate renewal check:', error);
+      logError('Error during certificate renewal check:', (error as Error).message);
     } finally {
       connection.release();
     }
@@ -140,14 +140,14 @@ export class RenewalScheduler {
           [newCertificateId]
         );
 
-        logError(`Failed to renew certificate for domain: ${cert.domain}`, new Error('Certificate renewal failed'));
+        logError(`Failed to renew certificate for domain: ${cert.domain}`, 'Certificate renewal failed');
 
         // Log renewal event
         await this.logRenewalEvent(cert.domain, 'failed', connection);
       }
 
     } catch (error) {
-      logError(`Error renewing certificate for domain ${cert.domain}:`, error);
+      logError(`Error renewing certificate for domain ${cert.domain}:`, (error as Error).message);
 
       // Log renewal event
       await this.logRenewalEvent(cert.domain, 'error', connection);
@@ -165,7 +165,7 @@ export class RenewalScheduler {
         [domain, status]
       );
     } catch (error) {
-      logError('Error logging renewal event:', error);
+      logError('Error logging renewal event:', (error as Error).message);
     }
   }
 
