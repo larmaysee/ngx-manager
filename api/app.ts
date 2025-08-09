@@ -118,7 +118,7 @@ app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 /**
  * API Routes
  */
-app.use("/api/auth", authLimiter, authRoutes);
+app.use("/api/auth", authRoutes);
 app.use("/api/proxies", proxyRoutes);
 app.use("/api/ssl", sslRoutes);
 app.use("/api/renewal", renewalRoutes);
