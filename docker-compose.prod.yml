@@ -60,6 +60,8 @@ services:
       - MIN_PASSWORD_LENGTH=${MIN_PASSWORD_LENGTH:-12}
       - MAX_LOGIN_ATTEMPTS=${MAX_LOGIN_ATTEMPTS:-5}
       - LOCKOUT_TIME_MS=${LOCKOUT_TIME_MS:-900000}
+    ports:
+      - "5000:5000"
     volumes:
       - nginx_configs:/etc/nginx/conf.d
       - certbot_certs:/etc/letsencrypt
@@ -67,8 +69,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       # Security: Logs volume for Winston
       - ./logs:/app/logs
-    # SECURITY: Server port not exposed to host in production
-    # Only accessible through nginx proxy
     depends_on:
       - db
     networks:
@@ -96,8 +96,8 @@ services:
         - VITE_API_URL=${VITE_API_URL}
     container_name: ngx_manager_client
     restart: unless-stopped
-    # SECURITY: Client port not exposed to host in production
-    # Only accessible through nginx proxy
+    ports:
+      - "3000:3000"
     depends_on:
       - server
     networks:
