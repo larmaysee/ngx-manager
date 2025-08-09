@@ -7,10 +7,8 @@ services:
     container_name: ngx_manager_db
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-CHANGE_ME_ROOT_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME}
-      MYSQL_USER: ${DB_USER}
-      MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
       - mysql_data:/var/lib/mysql
       - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -67,7 +65,6 @@ services:
       - ./logs:/app/logs
     depends_on:
       - db
-      - db-init
     networks:
       - ngx_network
     # Security: Limit resources
@@ -99,41 +96,6 @@ services:
       - server
     networks:
       - ngx_network
-
-  # One-off initializer to ensure application DB user & grants exist (idempotent)
-  db-init:
-    image: mysql:8.0
-    container_name: ngx_manager_db_init
-    environment:
-      DB_HOST: db
-      DB_NAME: ${DB_NAME}
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
-      DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
-    depends_on:
-      - db
-    entrypoint: |
-      sh -c '
-      set -e
-      echo "Waiting for MySQL..."
-      until mysqladmin ping -h "$DB_HOST" -uroot -p"$DB_ROOT_PASSWORD" --silent; do sleep 2; done
-      echo "Ensuring database and user..."
-      mysql -h "$DB_HOST" -uroot -p"$DB_ROOT_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\`;"
-      mysql -h "$DB_HOST" -uroot -p"$DB_ROOT_PASSWORD" -e "CREATE USER IF NOT EXISTS '$DB_USER'@'%' IDENTIFIED BY '$DB_PASSWORD';" || true
-      mysql -h "$DB_HOST" -uroot -p"$DB_ROOT_PASSWORD" -e "ALTER USER '$DB_USER'@'%' IDENTIFIED BY '$DB_PASSWORD';" || true
-      mysql -h "$DB_HOST" -uroot -p"$DB_ROOT_PASSWORD" -e "GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'%';"
-      mysql -h "$DB_HOST" -uroot -p"$DB_ROOT_PASSWORD" -e "FLUSH PRIVILEGES;"
-      echo "DB init complete."
-      '
-    restart: "no"
-    networks:
-      - ngx_network
-    # Security: Limit resources
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: "0.2"
 
   # Nginx Proxy Server (Only service with exposed ports)
   # Nginx Proxy Server

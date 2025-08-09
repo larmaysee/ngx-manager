@@ -12,23 +12,11 @@ dotenv.config({
   path: path.resolve(process.cwd(), ".env"),
 });
 
-// Basic env diagnostics (never print raw secrets)
-console.log("DB_HOST:", process.env.DB_HOST);
-console.log("DB_PORT:", process.env.DB_PORT);
-console.log("DB_USER:", process.env.DB_USER);
-console.log("DB_NAME:", process.env.DB_NAME);
-if (process.env.DB_PASSWORD) {
-  console.log("DB_PASSWORD: (set)");
-}
-if (process.env.DB_ROOT_PASSWORD) {
-  console.log("DB_ROOT_PASSWORD: (set)");
-}
-
 const dbConfig = {
   host: process.env.DB_HOST || "localhost",
   port: parseInt(process.env.DB_PORT || "3306"),
   user: process.env.DB_USER || "root",
-  password: process.env.DB_PASSWORD || "",
+  password: process.env.DB_ROOT_PASSWORD || "",
   database: process.env.DB_NAME || "nginx_proxy_manager",
   waitForConnections: true,
   connectionLimit: 10,
