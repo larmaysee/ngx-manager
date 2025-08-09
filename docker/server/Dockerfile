@@ -13,6 +13,7 @@ RUN pnpm install --frozen-lockfile
 # Copy source code
 COPY api/ ./api/
 COPY tsconfig.json ./
+COPY tsconfig.server.json ./
 
 # Build the server application (TypeScript only)
 RUN pnpm run build:server
