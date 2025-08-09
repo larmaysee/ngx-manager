@@ -119,6 +119,8 @@ async function createTables(): Promise<void> {
         password_hash VARCHAR(255) NOT NULL,
         name VARCHAR(100) NOT NULL,
         first_login BOOLEAN DEFAULT TRUE,
+  last_login TIMESTAMP NULL DEFAULT NULL,
+  password_changed_at TIMESTAMP NULL DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       )
@@ -186,6 +188,73 @@ async function createTables(): Promise<void> {
 
     // Insert default admin user if not exists
     await insertDefaultData(connection);
+
+    // Safeguard: ensure critical user columns exist for older deployments
+    try {
+      const requiredColumns: { name: string; ddl: string; post?: string }[] = [
+        {
+          name: "first_login",
+          ddl: "ALTER TABLE users ADD COLUMN first_login TINYINT(1) DEFAULT 1",
+          post: "UPDATE users SET first_login = 0 WHERE id > 0",
+        },
+        {
+          name: "last_login",
+          ddl: "ALTER TABLE users ADD COLUMN last_login TIMESTAMP NULL DEFAULT NULL",
+        },
+        {
+          name: "password_changed_at",
+          ddl: "ALTER TABLE users ADD COLUMN password_changed_at TIMESTAMP NULL DEFAULT NULL",
+          post: "UPDATE users SET password_changed_at = created_at WHERE password_changed_at IS NULL",
+        },
+      ];
+      for (const col of requiredColumns) {
+        const [colRows] = await connection.execute<mysql.RowDataPacket[]>(
+          `SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'users' AND COLUMN_NAME = ?`,
+          [dbConfig.database, col.name]
+        );
+        if ((colRows as mysql.RowDataPacket[]).length === 0) {
+          console.log(
+            `⚠️  '${col.name}' column missing on users table. Adding now...`
+          );
+          try {
+            // Try MySQL 8 IF NOT EXISTS syntax first
+            await connection.execute(
+              `ALTER TABLE users ADD COLUMN IF NOT EXISTS ${col.name} ${col.ddl
+                .split(" ")
+                .slice(5)
+                .join(" ")}`
+            );
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            if (
+              msg.includes("You have an error in your SQL syntax") ||
+              msg.includes("check the manual")
+            ) {
+              // Retry without IF NOT EXISTS (older MySQL)
+              await connection.execute(col.ddl);
+            } else if (!msg.includes("Duplicate column name")) {
+              throw err;
+            }
+          }
+          if (col.post) {
+            try {
+              await connection.execute(col.post);
+            } catch (postErr) {
+              logError(
+                `Post-add initialization failed for column ${col.name}`,
+                postErr instanceof Error ? postErr.message : postErr
+              );
+            }
+          }
+          console.log(`✅ '${col.name}' column added (or already existed)`);
+        }
+      }
+    } catch (safeguardErr) {
+      logError(
+        "Warning: failed to verify/add one or more user columns",
+        safeguardErr instanceof Error ? safeguardErr.message : safeguardErr
+      );
+    }
   } finally {
     connection.release();
   }
