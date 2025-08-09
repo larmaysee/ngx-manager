@@ -1,19 +1,41 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { useToast } from '@/hooks/use-toast';
-import Navigation from '@/components/Navigation';
-import { Plus, Edit, Trash2, Globe, Shield, AlertCircle, CheckCircle, X } from 'lucide-react';
-import { useForm } from 'react-hook-form';
+import React, { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import Navigation from "@/components/Navigation";
+import { Plus, Edit, Trash2, Globe, Shield } from "lucide-react";
+import { useForm, Controller } from "react-hook-form";
 
 interface Proxy {
   id: number;
@@ -21,14 +43,14 @@ interface Proxy {
   target_host: string;
   target_port: number;
   ssl_enabled: boolean;
-  ssl_force_redirect: boolean;
-  status: 'active' | 'inactive' | 'error';
+  ssl_force_redirect?: boolean;
+  status: "active" | "inactive" | "error";
   created_at: string;
   updated_at: string;
 }
 
 interface ProxyFormData {
-  domain_name: string;
+  domain: string;
   target_host: string;
   target_port: number;
   ssl_enabled: boolean;
@@ -36,7 +58,7 @@ interface ProxyFormData {
 }
 
 const Proxies: React.FC = () => {
-  const { token } = useAuth();
+  useAuth(); // ensure auth context hook runs (e.g., for redirect) without unused var
   const { toast } = useToast();
   const [proxies, setProxies] = useState<Proxy[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,36 +68,57 @@ const Proxies: React.FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [proxyToDelete, setProxyToDelete] = useState<number | null>(null);
 
-  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<ProxyFormData>();
+  const {
+    control,
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    formState: { errors },
+  } = useForm<ProxyFormData>({
+    defaultValues: {
+      domain: "",
+      target_host: "",
+      // Initialize as empty string; will be converted to number on submit
+      target_port: "" as unknown as number,
+      ssl_enabled: false,
+      ssl_force_redirect: false,
+    },
+  });
 
   // Fetch proxies
   const fetchProxies = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/proxies`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/proxies`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+          },
         }
-      });
+      );
 
       if (!response.ok) {
-        throw new Error('Failed to fetch proxies');
+        throw new Error("Failed to fetch proxies");
       }
 
       const data = await response.json();
       setProxies(data.proxies || []);
     } catch (err) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: err instanceof Error ? err.message : 'Failed to fetch proxies'
-        });
-      } finally {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description:
+          err instanceof Error ? err.message : "Failed to fetch proxies",
+      });
+    } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchProxies();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchProxies stable
   }, []);
 
   // Handle form submission
@@ -83,36 +126,40 @@ const Proxies: React.FC = () => {
     setSubmitting(true);
 
     try {
-      const url = editingProxy ? `${import.meta.env.VITE_API_URL}/api/proxies/${editingProxy.id}` : `${import.meta.env.VITE_API_URL}/api/proxies`;
-      const method = editingProxy ? 'PUT' : 'POST';
+      const url = editingProxy
+        ? `${import.meta.env.VITE_API_URL}/api/proxies/${editingProxy.id}`
+        : `${import.meta.env.VITE_API_URL}/api/proxies`;
+      const method = editingProxy ? "PUT" : "POST";
 
       // Transform form data to match API expectations
       const apiData = {
-        domain: data.domain_name,
+        domain: data.domain,
         target_host: data.target_host,
         target_port: data.target_port,
-        ssl_enabled: data.ssl_enabled,
-        ssl_force_redirect: data.ssl_force_redirect
+        ssl_enabled: !!data.ssl_enabled,
+        ssl_force_redirect: !!data.ssl_force_redirect,
       };
 
       const response = await fetch(url, {
         method,
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
         },
-        body: JSON.stringify(apiData)
+        body: JSON.stringify(apiData),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save proxy');
+        throw new Error(errorData.error || "Failed to save proxy");
       }
 
       // Show success toast
       toast({
         title: "Success",
-        description: editingProxy ? "Proxy updated successfully" : "Proxy created successfully"
+        description: editingProxy
+          ? "Proxy updated successfully"
+          : "Proxy created successfully",
       });
 
       // Refresh proxies list
@@ -126,7 +173,8 @@ const Proxies: React.FC = () => {
       toast({
         variant: "destructive",
         title: "Error",
-        description: err instanceof Error ? err.message : 'Failed to save proxy'
+        description:
+          err instanceof Error ? err.message : "Failed to save proxy",
       });
     } finally {
       setSubmitting(false);
@@ -144,20 +192,23 @@ const Proxies: React.FC = () => {
     if (!proxyToDelete) return;
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/proxies/${proxyToDelete}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/proxies/${proxyToDelete}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+          },
         }
-      });
+      );
 
       if (!response.ok) {
-        throw new Error('Failed to delete proxy');
+        throw new Error("Failed to delete proxy");
       }
 
       toast({
         title: "Success",
-        description: "Proxy deleted successfully"
+        description: "Proxy deleted successfully",
       });
 
       await fetchProxies();
@@ -165,7 +216,8 @@ const Proxies: React.FC = () => {
       toast({
         variant: "destructive",
         title: "Error",
-        description: err instanceof Error ? err.message : 'Failed to delete proxy'
+        description:
+          err instanceof Error ? err.message : "Failed to delete proxy",
       });
     } finally {
       setDeleteDialogOpen(false);
@@ -176,11 +228,11 @@ const Proxies: React.FC = () => {
   // Handle edit
   const handleEdit = (proxy: Proxy) => {
     setEditingProxy(proxy);
-    setValue('domain_name', proxy.domain);
-    setValue('target_host', proxy.target_host);
-    setValue('target_port', proxy.target_port);
-    setValue('ssl_enabled', proxy.ssl_enabled);
-    setValue('ssl_force_redirect', proxy.ssl_force_redirect);
+    setValue("domain", proxy.domain);
+    setValue("target_host", proxy.target_host);
+    setValue("target_port", proxy.target_port);
+    setValue("ssl_enabled", proxy.ssl_enabled);
+    setValue("ssl_force_redirect", proxy.ssl_force_redirect);
     setDialogOpen(true);
   };
 
@@ -193,11 +245,11 @@ const Proxies: React.FC = () => {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'active':
+      case "active":
         return <Badge variant="default">Active</Badge>;
-      case 'inactive':
+      case "inactive":
         return <Badge variant="secondary">Inactive</Badge>;
-      case 'error':
+      case "error":
         return <Badge variant="destructive">Error</Badge>;
       default:
         return <Badge variant="outline">Unknown</Badge>;
@@ -221,8 +273,12 @@ const Proxies: React.FC = () => {
         <div className="mb-8">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Proxy Management</h1>
-              <p className="text-gray-600">Manage your nginx proxy configurations</p>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                Proxy Management
+              </h1>
+              <p className="text-gray-600">
+                Manage your nginx proxy configurations
+              </p>
             </div>
             <Button onClick={handleAddNew} className="flex items-center gap-2">
               <Plus className="h-4 w-4" />
@@ -234,28 +290,35 @@ const Proxies: React.FC = () => {
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>{editingProxy ? 'Edit Proxy' : 'Add New Proxy'}</DialogTitle>
+              <DialogTitle>
+                {editingProxy ? "Edit Proxy" : "Add New Proxy"}
+              </DialogTitle>
               <DialogDescription>
-                {editingProxy ? 'Update proxy configuration' : 'Create a new nginx proxy configuration'}
+                {editingProxy
+                  ? "Update proxy configuration"
+                  : "Create a new nginx proxy configuration"}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="domain_name">Domain Name</Label>
+                  <Label htmlFor="domain">Domain Name</Label>
                   <Input
-                    id="domain_name"
+                    id="domain"
                     placeholder="example.com"
-                    {...register('domain_name', {
-                      required: 'Domain name is required',
+                    {...register("domain", {
+                      required: "Domain name is required",
                       pattern: {
-                        value: /^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$/,
-                        message: 'Invalid domain name format'
-                      }
+                        value:
+                          /^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$/,
+                        message: "Invalid domain name format",
+                      },
                     })}
                   />
-                  {errors.domain_name && (
-                    <p className="text-sm text-destructive">{errors.domain_name.message}</p>
+                  {errors.domain && (
+                    <p className="text-sm text-destructive">
+                      {errors.domain.message}
+                    </p>
                   )}
                 </div>
 
@@ -264,12 +327,14 @@ const Proxies: React.FC = () => {
                   <Input
                     id="target_host"
                     placeholder="localhost or IP address"
-                    {...register('target_host', {
-                      required: 'Target host is required'
+                    {...register("target_host", {
+                      required: "Target host is required",
                     })}
                   />
                   {errors.target_host && (
-                    <p className="text-sm text-destructive">{errors.target_host.message}</p>
+                    <p className="text-sm text-destructive">
+                      {errors.target_host.message}
+                    </p>
                   )}
                 </div>
 
@@ -279,35 +344,63 @@ const Proxies: React.FC = () => {
                     id="target_port"
                     type="number"
                     placeholder="3000"
-                    {...register('target_port', {
-                      required: 'Target port is required',
-                      min: { value: 1, message: 'Port must be between 1 and 65535' },
-                      max: { value: 65535, message: 'Port must be between 1 and 65535' }
+                    {...register("target_port", {
+                      required: "Target port is required",
+                      min: {
+                        value: 1,
+                        message: "Port must be between 1 and 65535",
+                      },
+                      max: {
+                        value: 65535,
+                        message: "Port must be between 1 and 65535",
+                      },
                     })}
                   />
                   {errors.target_port && (
-                    <p className="text-sm text-destructive">{errors.target_port.message}</p>
+                    <p className="text-sm text-destructive">
+                      {errors.target_port.message}
+                    </p>
                   )}
                 </div>
 
                 <div className="space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="ssl_enabled"
-                      {...register('ssl_enabled')}
-                    />
-                    <Label htmlFor="ssl_enabled">Enable SSL</Label>
-                  </div>
+                  <Controller
+                    name="ssl_enabled"
+                    control={control}
+                    render={({ field }) => (
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="ssl_enabled"
+                          checked={!!field.value}
+                          onCheckedChange={(checked) =>
+                            field.onChange(checked === true)
+                          }
+                        />
+                        <Label htmlFor="ssl_enabled">Enable SSL</Label>
+                      </div>
+                    )}
+                  />
                 </div>
 
                 <div className="space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="ssl_force_redirect"
-                      {...register('ssl_force_redirect')}
-                    />
-                    <Label htmlFor="ssl_force_redirect">Force HTTPS Redirect</Label>
-                  </div>
+                  <Controller
+                    name="ssl_force_redirect"
+                    control={control}
+                    render={({ field }) => (
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="ssl_force_redirect"
+                          checked={!!field.value}
+                          onCheckedChange={(checked) =>
+                            field.onChange(checked === true)
+                          }
+                        />
+                        <Label htmlFor="ssl_force_redirect">
+                          Force HTTPS Redirect
+                        </Label>
+                      </div>
+                    )}
+                  />
                 </div>
               </div>
 
@@ -324,7 +417,11 @@ const Proxies: React.FC = () => {
                   Cancel
                 </Button>
                 <Button type="submit" disabled={submitting}>
-                  {submitting ? 'Saving...' : (editingProxy ? 'Update Proxy' : 'Create Proxy')}
+                  {submitting
+                    ? "Saving..."
+                    : editingProxy
+                    ? "Update Proxy"
+                    : "Create Proxy"}
                 </Button>
               </DialogFooter>
             </form>
@@ -335,7 +432,9 @@ const Proxies: React.FC = () => {
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Globe className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No proxies configured</h3>
+              <h3 className="text-lg font-semibold mb-2">
+                No proxies configured
+              </h3>
               <p className="text-muted-foreground text-center mb-4">
                 Get started by creating your first nginx proxy configuration.
               </p>
@@ -366,7 +465,9 @@ const Proxies: React.FC = () => {
                         <div className="flex flex-col">
                           <span>{proxy.domain}</span>
                           {proxy.ssl_force_redirect && (
-                            <span className="text-xs text-blue-600">Force HTTPS redirect</span>
+                            <span className="text-xs text-blue-600">
+                              Force HTTPS redirect
+                            </span>
                           )}
                         </div>
                       </TableCell>
@@ -375,12 +476,13 @@ const Proxies: React.FC = () => {
                           {proxy.target_host}:{proxy.target_port}
                         </span>
                       </TableCell>
-                      <TableCell>
-                        {getStatusBadge(proxy.status)}
-                      </TableCell>
+                      <TableCell>{getStatusBadge(proxy.status)}</TableCell>
                       <TableCell>
                         {proxy.ssl_enabled ? (
-                          <Badge variant="outline" className="flex items-center gap-1 w-fit">
+                          <Badge
+                            variant="outline"
+                            className="flex items-center gap-1 w-fit"
+                          >
                             <Shield className="h-3 w-3" />
                             Enabled
                           </Badge>
@@ -429,17 +531,23 @@ const Proxies: React.FC = () => {
             <AlertDialogHeader>
               <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
               <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete the proxy host configuration.
+                This action cannot be undone. This will permanently delete the
+                proxy host configuration.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => {
-                setDeleteDialogOpen(false);
-                setProxyToDelete(null);
-              }}>
+              <AlertDialogCancel
+                onClick={() => {
+                  setDeleteDialogOpen(false);
+                  setProxyToDelete(null);
+                }}
+              >
                 Cancel
               </AlertDialogCancel>
-              <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              <AlertDialogAction
+                onClick={handleDelete}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
                 Delete
               </AlertDialogAction>
             </AlertDialogFooter>

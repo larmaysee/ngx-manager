@@ -185,6 +185,43 @@ async function createTables(): Promise<void> {
       )
     `);
 
+    // Safeguard: create/verify password_history early if missing (code may reference before migrations)
+    try {
+      await connection.execute(`
+        CREATE TABLE IF NOT EXISTS password_history (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          user_id INT NOT NULL,
+          password_hash VARCHAR(255) NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT fk_password_history_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          INDEX idx_user_id (user_id),
+          INDEX idx_created_at (created_at)
+        )
+      `);
+      // If table existed already, ensure foreign key present; add if missing (best-effort)
+      const [fkRows] = await connection.execute<mysql.RowDataPacket[]>(
+        `SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'password_history' AND CONSTRAINT_TYPE = 'FOREIGN KEY' AND CONSTRAINT_NAME = 'fk_password_history_user'`,
+        [dbConfig.database]
+      );
+      if ((fkRows as mysql.RowDataPacket[]).length === 0) {
+        try {
+          await connection.execute(
+            `ALTER TABLE password_history ADD CONSTRAINT fk_password_history_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`
+          );
+        } catch (fkErr) {
+          const msg = fkErr instanceof Error ? fkErr.message : String(fkErr);
+          if (!msg.includes("Duplicate") && !msg.includes("exists")) {
+            logError("Warning adding password_history FK", msg);
+          }
+        }
+      }
+    } catch (phErr) {
+      logError(
+        "Warning: failed to create password_history pre-migration",
+        phErr instanceof Error ? phErr.message : phErr
+      );
+    }
+
     console.log("✅ Database tables created/verified");
 
     // Safeguard: ensure critical user columns exist for older deployments

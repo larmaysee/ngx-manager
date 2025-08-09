@@ -1,14 +1,21 @@
-import React from 'react';
-import { Navigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import ChangePassword from '@/components/ChangePassword';
+import React from "react";
+import { Navigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import ChangePassword from "@/components/ChangePassword";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { user, token, isLoading, requiresPasswordChange, setRequiresPasswordChange } = useAuth();
+  const {
+    user,
+    token,
+    isLoading,
+    requiresPasswordChange,
+    setRequiresPasswordChange,
+    refreshUser,
+  } = useAuth();
 
   // Show loading state while checking authentication
   if (isLoading) {
@@ -24,18 +31,18 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return <Navigate to="/login" replace />;
   }
 
-  console.log('user', user);
-  console.log('token', token);
-  console.log('requiresPasswordChange', requiresPasswordChange);
-
+  console.log("user", user);
+  console.log("token", token);
+  console.log("requiresPasswordChange", requiresPasswordChange);
 
   // Show password change form if required
-  if (requiresPasswordChange) {
+  if (requiresPasswordChange || user.first_login) {
     return (
       <ChangePassword
         isFirstLogin={true}
         onSuccess={() => {
           setRequiresPasswordChange(false);
+          refreshUser();
         }}
       />
     );

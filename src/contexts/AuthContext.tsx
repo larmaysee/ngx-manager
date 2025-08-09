@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
 
 interface User {
   id: number;
@@ -10,8 +16,19 @@ interface User {
 interface AuthContextType {
   user: User | null;
   token: string | null;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string; requiresPasswordChange?: boolean }>;
-  register: (email: string, password: string, name: string) => Promise<{ success: boolean; error?: string }>;
+  login: (
+    email: string,
+    password: string
+  ) => Promise<{
+    success: boolean;
+    error?: string;
+    requiresPasswordChange?: boolean;
+  }>;
+  register: (
+    email: string,
+    password: string,
+    name: string
+  ) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   isLoading: boolean;
   requiresPasswordChange: boolean;
@@ -24,7 +41,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };
@@ -41,7 +58,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Check for existing token on mount
   useEffect(() => {
-    const storedToken = localStorage.getItem('auth_token');
+    const storedToken = localStorage.getItem("auth_token");
     if (storedToken) {
       setToken(storedToken);
       // Verify token and get user info
@@ -53,12 +70,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const fetchUserInfo = async (authToken: string) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/me`, {
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/auth/me`,
+        {
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       if (response.ok) {
         const data = await response.json();
@@ -66,46 +86,55 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUser(data.user);
           // Check if user needs to change password
           if (data.user.first_login) {
-            console.log("User needs to change password");
-
-
             setRequiresPasswordChange(true);
+          } else {
+            setRequiresPasswordChange(false);
           }
         } else {
           // Token is invalid
-          localStorage.removeItem('auth_token');
+          localStorage.removeItem("auth_token");
           setToken(null);
         }
       } else {
         // Token is invalid
-        localStorage.removeItem('auth_token');
+        localStorage.removeItem("auth_token");
         setToken(null);
       }
     } catch (error) {
-      console.error('Error fetching user info:', error);
-      localStorage.removeItem('auth_token');
+      console.error("Error fetching user info:", error);
+      localStorage.removeItem("auth_token");
       setToken(null);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string; requiresPasswordChange?: boolean }> => {
+  const login = async (
+    email: string,
+    password: string
+  ): Promise<{
+    success: boolean;
+    error?: string;
+    requiresPasswordChange?: boolean;
+  }> => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/auth/login`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email, password }),
+        }
+      );
 
       const data = await response.json();
 
       if (data.success) {
         setToken(data.token);
         setUser(data.user);
-        localStorage.setItem('auth_token', data.token);
+        localStorage.setItem("auth_token", data.token);
 
         // Check if user needs to change password
         const needsPasswordChange = data.user.first_login === true;
@@ -113,40 +142,47 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         return {
           success: true,
-          requiresPasswordChange: needsPasswordChange
+          requiresPasswordChange: needsPasswordChange,
         };
       } else {
-        return { success: false, error: data.error || 'Login failed' };
+        return { success: false, error: data.error || "Login failed" };
       }
     } catch (error) {
-      console.error('Login error:', error);
-      return { success: false, error: 'Network error. Please try again.' };
+      console.error("Login error:", error);
+      return { success: false, error: "Network error. Please try again." };
     }
   };
 
-  const register = async (email: string, password: string, name: string): Promise<{ success: boolean; error?: string }> => {
+  const register = async (
+    email: string,
+    password: string,
+    name: string
+  ): Promise<{ success: boolean; error?: string }> => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password, name }),
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/auth/register`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email, password, name }),
+        }
+      );
 
       const data = await response.json();
 
       if (data.success) {
         setToken(data.token);
         setUser(data.user);
-        localStorage.setItem('auth_token', data.token);
+        localStorage.setItem("auth_token", data.token);
         return { success: true };
       } else {
-        return { success: false, error: data.error || 'Registration failed' };
+        return { success: false, error: data.error || "Registration failed" };
       }
     } catch (error) {
-      console.error('Registration error:', error);
-      return { success: false, error: 'Network error. Please try again.' };
+      console.error("Registration error:", error);
+      return { success: false, error: "Network error. Please try again." };
     }
   };
 
@@ -154,7 +190,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(null);
     setToken(null);
     setRequiresPasswordChange(false);
-    localStorage.removeItem('auth_token');
+    localStorage.removeItem("auth_token");
   };
 
   const refreshUser = async () => {

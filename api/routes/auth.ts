@@ -149,10 +149,22 @@ const checkPasswordHistory = async (
     const historyLimit = parseInt(process.env.PASSWORD_HISTORY_LIMIT || "5");
 
     // Get recent password hashes
-    const [rows] = await connection.execute(
-      "SELECT password_hash FROM password_history WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
-      [userId, historyLimit]
-    );
+    let rows: any[] = [];
+    const limit =
+      Number.isFinite(historyLimit) && historyLimit > 0 ? historyLimit : 5;
+    try {
+      const [result] = await connection.execute(
+        `SELECT password_hash FROM password_history WHERE user_id = ? ORDER BY created_at DESC LIMIT ${limit}`,
+        [userId]
+      );
+      rows = result as any[];
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("password_history") && msg.includes("doesn't exist")) {
+        return true; // allow change if history table not present yet
+      }
+      throw err;
+    }
 
     const passwordHistory = rows as { password_hash: string }[];
 
@@ -177,25 +189,46 @@ const addPasswordToHistory = async (
   try {
     const historyLimit = parseInt(process.env.PASSWORD_HISTORY_LIMIT || "5");
 
-    // Add new password to history
-    await connection.execute(
-      "INSERT INTO password_history (user_id, password_hash) VALUES (?, ?)",
-      [userId, passwordHash]
-    );
+    // Add new password to history (ignore if table missing)
+    try {
+      await connection.execute(
+        "INSERT INTO password_history (user_id, password_hash) VALUES (?, ?)",
+        [userId, passwordHash]
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (
+        !(msg.includes("password_history") && msg.includes("doesn't exist"))
+      ) {
+        throw err;
+      }
+      return; // gracefully exit if table absent
+    }
 
-    // Clean up old password history beyond the limit
-    await connection.execute(
-      `DELETE FROM password_history 
-       WHERE user_id = ? AND id NOT IN (
-         SELECT id FROM (
-           SELECT id FROM password_history 
-           WHERE user_id = ? 
-           ORDER BY created_at DESC 
-           LIMIT ?
-         ) AS recent_passwords
-       )`,
-      [userId, userId, historyLimit]
-    );
+    // Clean up old password history beyond the limit (ignore missing table)
+    try {
+      const limit =
+        Number.isFinite(historyLimit) && historyLimit > 0 ? historyLimit : 5;
+      await connection.execute(
+        `DELETE FROM password_history 
+         WHERE user_id = ? AND id NOT IN (
+           SELECT id FROM (
+             SELECT id FROM password_history 
+             WHERE user_id = ? 
+             ORDER BY created_at DESC 
+             LIMIT ${limit}
+           ) AS recent_passwords
+         )`,
+        [userId, userId]
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (
+        !(msg.includes("password_history") && msg.includes("doesn't exist"))
+      ) {
+        throw err;
+      }
+    }
   } finally {
     connection.release();
   }
@@ -424,6 +457,7 @@ router.get(
         id: req.user?.id,
         email: req.user?.email,
         name: req.user?.name,
+        first_login: (req.user as any)?.first_login,
       },
     });
   })
@@ -447,6 +481,10 @@ router.put(
       }
       return true;
     }),
+    body("name")
+      .optional()
+      .isLength({ min: 2, max: 100 })
+      .withMessage("Name must be between 2 and 100 characters"),
   ],
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
     // Check validation errors
@@ -460,7 +498,11 @@ router.put(
       return;
     }
 
-    const { currentPassword, newPassword } = req.body;
+    const { currentPassword, newPassword, name } = req.body as {
+      currentPassword: string;
+      newPassword: string;
+      name?: string;
+    };
     const userId = req.user?.id;
 
     if (!userId) {
@@ -480,7 +522,7 @@ router.put(
     try {
       // Get current user data
       const [users] = (await connection.execute(
-        "SELECT password_hash FROM users WHERE id = ?",
+        "SELECT password_hash, first_login, name FROM users WHERE id = ?",
         [userId]
       )) as any;
 
@@ -489,6 +531,17 @@ router.put(
       }
 
       const user = users[0];
+
+      // If first login enforce providing a different name (optional business rule)
+      if (user.first_login) {
+        if (!name || name.trim().length < 2) {
+          res.status(400).json({
+            success: false,
+            error: "Name is required to complete first-time setup",
+          });
+          return;
+        }
+      }
 
       // Verify current password
       const isCurrentPasswordValid = await bcrypt.compare(
@@ -518,18 +571,42 @@ router.put(
       const saltRounds = 12;
       const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
 
-      // Update password
-      await connection.execute(
-        "UPDATE users SET password_hash = ?, password_changed_at = NOW() WHERE id = ?",
-        [hashedNewPassword, userId]
-      );
+      // Update password (and name / first_login if applicable)
+      if (user.first_login) {
+        await connection.execute(
+          "UPDATE users SET password_hash = ?, password_changed_at = NOW(), first_login = 0, name = ? WHERE id = ?",
+          [hashedNewPassword, name ?? user.name, userId]
+        );
+      } else if (name && name.trim() && name.trim() !== user.name) {
+        await connection.execute(
+          "UPDATE users SET password_hash = ?, password_changed_at = NOW(), name = ? WHERE id = ?",
+          [hashedNewPassword, name.trim(), userId]
+        );
+      } else {
+        await connection.execute(
+          "UPDATE users SET password_hash = ?, password_changed_at = NOW() WHERE id = ?",
+          [hashedNewPassword, userId]
+        );
+      }
 
       // Add new password to history
       await addPasswordToHistory(userId, hashedNewPassword);
 
+      // Fetch updated user to return
+      const [updatedRows] = await connection.execute(
+        "SELECT id, email, name, first_login FROM users WHERE id = ?",
+        [userId]
+      );
+      const updated = Array.isArray(updatedRows)
+        ? (updatedRows as any[])[0]
+        : null;
+
       res.json({
         success: true,
-        message: "Password updated successfully",
+        message: user.first_login
+          ? "First-time setup completed successfully"
+          : "Password updated successfully",
+        user: updated,
       });
     } catch (error) {
       logError(error, "Change Password", req.user?.id);
