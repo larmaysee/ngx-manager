@@ -110,38 +110,24 @@ services:
           cpus: '0.2'
 
   # Nginx Proxy Server (Only service with exposed ports)
+  # Nginx Proxy Server
   nginx:
-    image: nginx:alpine
-    container_name: ngx_manager_nginx
+    build:
+      context: ./docker/nginx
+      dockerfile: Dockerfile
+    container_name: ngx_manager_nginx_proxy
     restart: unless-stopped
     ports:
-      # Only HTTP and HTTPS ports exposed
       - "80:80"
       - "443:443"
     volumes:
       - nginx_configs:/etc/nginx/conf.d
-      - certbot_certs:/etc/letsencrypt:ro
-      - certbot_www:/var/www/certbot:ro
-      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt
     depends_on:
-      - client
       - server
+      - client
     networks:
       - ngx_network
-    command: ["/bin/sh", "-c", "while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g 'daemon off;'"]
-    # Security: Limit resources
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.2'
-    # Security: Health check
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
   # Certbot for SSL certificates
   certbot:
