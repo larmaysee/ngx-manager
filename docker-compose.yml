@@ -34,7 +34,7 @@ services:
       - DB_PASSWORD=ngx_password
       - DB_NAME=nginx_proxy_manager
       - JWT_SECRET=your_jwt_secret_change_this_in_production
-      - PORT=3001
+      - PORT=5000
       - NGINX_CONFIG_PATH=/etc/nginx/conf.d
       - CERTBOT_CERTS_PATH=/etc/letsencrypt
       - CERTBOT_WWW_PATH=/var/www/certbot
@@ -43,8 +43,6 @@ services:
       - certbot_certs:/etc/letsencrypt
       - certbot_www:/var/www/certbot
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    ports:
-      - "3001:3001"
     depends_on:
       - db
     networks:
@@ -58,7 +56,7 @@ services:
     container_name: ngx_manager_client
     restart: unless-stopped
     environment:
-      - VITE_API_URL=http://server:3001
+      - VITE_API_URL=http://server:5000
     ports:
       - "3000:3000"
     depends_on:

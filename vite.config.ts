@@ -21,13 +21,13 @@ export default defineConfig({
       clickUrl: 'https://www.trae.ai/solo?showJoin=1',
       autoTheme: true,
       autoThemeTarget: '#root'
-    }), 
+    }),
     tsconfigPaths(),
   ],
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:5000',
         changeOrigin: true,
         secure: false,
         configure: (proxy, _options) => {

@@ -289,7 +289,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME}
       - JWT_SECRET=${JWT_SECRET}
-      - PORT=3001
+      - PORT=5000
     volumes:
       - nginx_configs:/etc/nginx/conf.d
       - certbot_certs:/etc/letsencrypt
@@ -302,7 +302,7 @@ services:
       - ngx_network
     # Add health check
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -494,7 +494,7 @@ find $BACKUP_DIR -name "backup_*.sql" -mtime +7 -delete
 ### 3. Health Monitoring
 ```bash
 # Add to crontab
-*/5 * * * * curl -f http://localhost/api/health || echo "Service down" | mail -s "NGX Manager Alert" admin@yourdomain.com
+*/5 * * * * curl -f http://localhost:5000/api/health || echo "Service down" | mail -s "NGX Manager Alert" admin@yourdomain.com
 ```
 
 ## 🔍 Security Hardening

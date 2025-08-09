@@ -48,7 +48,7 @@ services:
       - DB_NAME=${DB_NAME}
       - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-24h}
-      - PORT=3001
+      - PORT=5000
       - NGINX_CONFIG_PATH=/etc/nginx/conf.d
       - CERTBOT_CERTS_PATH=/etc/letsencrypt
       - CERTBOT_WWW_PATH=/var/www/certbot
@@ -81,7 +81,7 @@ services:
           cpus: '0.3'
     # Security: Health check
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
       timeout: 10s
       retries: 3

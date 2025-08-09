@@ -18,7 +18,7 @@ COPY tsconfig.json ./
 RUN pnpm run build:server
 
 # Expose port
-EXPOSE 3001
+EXPOSE 5000
 
 # Start the server
 CMD ["node", "dist/api/server.js"]
