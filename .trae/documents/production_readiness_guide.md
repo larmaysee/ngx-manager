@@ -283,8 +283,8 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
-      - DB_HOST=db
-      - DB_PORT=3306
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME}

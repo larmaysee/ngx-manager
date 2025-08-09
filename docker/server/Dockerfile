@@ -2,6 +2,9 @@ FROM node:18-alpine
 
 WORKDIR /app
 
+# Install curl for health checks
+RUN apk add --no-cache curl
+
 # Copy package files
 COPY package*.json ./
 COPY pnpm-lock.yaml ./
@@ -19,7 +22,7 @@ COPY tsconfig.server.json ./
 RUN pnpm run build:server
 
 # Expose port
-EXPOSE 5000
+EXPOSE 5500
 
 # Start the server
 CMD ["node", "--es-module-specifier-resolution=node", "dist/api/server.js"]

@@ -8,7 +8,16 @@ import fs from 'fs/promises';
 import path from 'path';
 import { logError } from '../utils/errorHandler.js';
 
-dotenv.config();
+dotenv.config({
+  path: path.resolve(process.cwd(), '.env'),
+});
+
+console.log('DB_HOST:', process.env.DB_HOST);
+console.log('DB_PORT:', process.env.DB_PORT);
+console.log('DB_USER:', process.env.DB_USER);
+console.log('DB_PASSWORD:', process.env.DB_PASSWORD);
+console.log('DB_NAME:', process.env.DB_NAME);
+
 
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
@@ -54,7 +63,7 @@ export async function initializeDatabase(): Promise<void> {
 
     // Create tables
     await createTables();
-    
+
     // Run pending migrations
     await runMigrations();
   } catch (error) {
@@ -183,7 +192,7 @@ async function insertDefaultData(connection: mysql.PoolConnection): Promise<void
 export async function runMigrations(): Promise<void> {
   try {
     const migrationsDir = path.join(process.cwd(), 'migrations');
-    
+
     // Check if migrations directory exists
     try {
       await fs.access(migrationsDir);

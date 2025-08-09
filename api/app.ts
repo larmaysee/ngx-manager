@@ -22,7 +22,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // load env
-dotenv.config();
+dotenv.config({
+  path: path.resolve(process.cwd(), '.env'),
+});
 
 // Configure Winston logger
 const logger = winston.createLogger({
@@ -134,7 +136,7 @@ app.use('/api/health', (req: Request, res: Response, next: NextFunction): void =
     environment: process.env.NODE_ENV || 'development',
     version: process.env.npm_package_version || '1.0.0'
   };
-  
+
   res.status(200).json(healthCheck);
 });
 
@@ -150,10 +152,10 @@ app.use((error: Error, req: Request, res: Response, next: NextFunction) => {
     ip: req.ip,
     userAgent: req.get('User-Agent')
   });
-  
+
   // Don't leak error details in production
   const isDevelopment = process.env.NODE_ENV !== 'production';
-  
+
   res.status(500).json({
     success: false,
     error: 'Internal server error',

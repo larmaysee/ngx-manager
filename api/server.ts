@@ -3,17 +3,28 @@
  */
 import app from './app.js';
 import { renewalScheduler } from './services/renewalScheduler.js';
+import { initializeDatabase } from './config/database.js';
 
 /**
  * start server with port
  */
-const PORT = process.env.PORT || 5000;
 
-const server = app.listen(PORT, () => {
+console.log('SERVER_PORT:', process.env.SERVER_PORT);
+
+const PORT = process.env.SERVER_PORT || 5000;
+
+const server = app.listen(PORT, async () => {
   console.log(`Server ready on port ${PORT}`);
 
-  // Start the SSL certificate renewal scheduler
-  renewalScheduler.start();
+  try {
+    // Ensure database is fully initialized before starting scheduler
+    await initializeDatabase();
+
+    // Start the SSL certificate renewal scheduler after database is ready
+    renewalScheduler.start();
+  } catch (error) {
+    console.error('Failed to initialize database, scheduler not started:', error);
+  }
 });
 
 /**
