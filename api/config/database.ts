@@ -1,30 +1,35 @@
 /**
  * Database configuration and connection setup
  */
-import mysql from 'mysql2/promise';
-import bcrypt from 'bcrypt';
-import dotenv from 'dotenv';
-import fs from 'fs/promises';
-import path from 'path';
-import { logError } from '../utils/errorHandler.js';
+import mysql from "mysql2/promise";
+import bcrypt from "bcrypt";
+import dotenv from "dotenv";
+import fs from "fs/promises";
+import path from "path";
+import { logError } from "../utils/errorHandler.js";
 
 dotenv.config({
-  path: path.resolve(process.cwd(), '.env'),
+  path: path.resolve(process.cwd(), ".env"),
 });
 
-console.log('DB_HOST:', process.env.DB_HOST);
-console.log('DB_PORT:', process.env.DB_PORT);
-console.log('DB_USER:', process.env.DB_USER);
-console.log('DB_PASSWORD:', process.env.DB_PASSWORD);
-console.log('DB_NAME:', process.env.DB_NAME);
-
+// Basic env diagnostics (never print raw secrets)
+console.log("DB_HOST:", process.env.DB_HOST);
+console.log("DB_PORT:", process.env.DB_PORT);
+console.log("DB_USER:", process.env.DB_USER);
+console.log("DB_NAME:", process.env.DB_NAME);
+if (process.env.DB_PASSWORD) {
+  console.log("DB_PASSWORD: (set)");
+}
+if (process.env.DB_ROOT_PASSWORD) {
+  console.log("DB_ROOT_PASSWORD: (set)");
+}
 
 const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '3306'),
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'nginx_proxy_manager',
+  host: process.env.DB_HOST || "localhost",
+  port: parseInt(process.env.DB_PORT || "3306"),
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASSWORD || "",
+  database: process.env.DB_NAME || "nginx_proxy_manager",
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
@@ -39,35 +44,76 @@ export async function testConnection(): Promise<boolean> {
     const connection = await pool.getConnection();
     await connection.ping();
     connection.release();
-    console.log('✅ Database connection successful');
+    console.log("✅ Database connection successful");
     return true;
   } catch (error) {
-    logError('❌ Database connection failed:', error);
+    logError("❌ Database connection failed:", error);
     return false;
   }
 }
 
 // Initialize database schema
 export async function initializeDatabase(): Promise<void> {
+  // Attempt to ensure database exists. If we don't have privilege, continue.
   try {
-    // Create database if it doesn't exist
-    const tempPool = mysql.createPool({
-      ...dbConfig,
-      database: undefined, // Connect without specifying database
-    });
+    const wantsRoot = process.env.DB_ROOT_PASSWORD && dbConfig.user !== "root";
+    if (wantsRoot) {
+      try {
+        const rootPool = mysql.createPool({
+          host: dbConfig.host,
+          port: dbConfig.port,
+          user: "root",
+          password: process.env.DB_ROOT_PASSWORD,
+          waitForConnections: true,
+          connectionLimit: 2,
+          queueLimit: 0,
+        });
+        await rootPool.execute(
+          `CREATE DATABASE IF NOT EXISTS \`${dbConfig.database}\``
+        );
+        await rootPool.end();
+        console.log(
+          `✅ Database '${dbConfig.database}' created/verified using root user`
+        );
+      } catch (rootErr: unknown) {
+        const msg =
+          rootErr instanceof Error ? rootErr.message : String(rootErr);
+        // Fall back to non-root attempt (might still succeed if already exists)
+        console.log("⚠️  Root creation attempt failed or not permitted:", msg);
+      }
+    }
 
-    await tempPool.execute(`CREATE DATABASE IF NOT EXISTS \`${dbConfig.database}\``);
-    await tempPool.end();
+    // Try with application user (ignore privilege error for CREATE DATABASE)
+    try {
+      const tempPool = mysql.createPool({
+        ...dbConfig,
+        database: undefined,
+      });
+      await tempPool.execute(
+        `CREATE DATABASE IF NOT EXISTS \`${dbConfig.database}\``
+      );
+      await tempPool.end();
+      console.log(`✅ Database '${dbConfig.database}' verified (app user)`);
+    } catch (createErr: unknown) {
+      const msg =
+        createErr instanceof Error ? createErr.message : String(createErr);
+      if (msg.includes("access denied") || msg.includes("denied")) {
+        console.log(
+          "ℹ️  Skipping database creation (insufficient privileges); assuming it already exists."
+        );
+      } else {
+        throw createErr;
+      }
+    }
 
-    console.log(`✅ Database '${dbConfig.database}' created/verified`);
-
-    // Create tables
+    // Proceed with table creation & migrations inside the target DB
     await createTables();
-
-    // Run pending migrations
     await runMigrations();
   } catch (error) {
-    logError('❌ Database initialization failed:', error);
+    logError(
+      "❌ Database initialization failed:",
+      error instanceof Error ? error.message : error
+    );
     throw error;
   }
 }
@@ -93,10 +139,11 @@ async function createTables(): Promise<void> {
     // Create index for users email (with error handling for older MySQL versions)
     try {
       await connection.execute(`CREATE INDEX idx_users_email ON users(email)`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Index might already exist, ignore duplicate key error
-      if (!error.message.includes('Duplicate key name')) {
-        logError('Warning creating users email index:', error.message);
+      const msg = error instanceof Error ? error.message : String(error);
+      if (!msg.includes("Duplicate key name")) {
+        logError("Warning creating users email index:", msg);
       }
     }
 
@@ -147,68 +194,68 @@ async function createTables(): Promise<void> {
       )
     `);
 
-    console.log('✅ Database tables created/verified');
+    console.log("✅ Database tables created/verified");
 
     // Insert default admin user if not exists
     await insertDefaultData(connection);
-
   } finally {
     connection.release();
   }
 }
 
 // Insert default data
-async function insertDefaultData(connection: mysql.PoolConnection): Promise<void> {
+async function insertDefaultData(
+  connection: mysql.PoolConnection
+): Promise<void> {
   try {
-    // Get default user credentials from environment variables
-    const defaultEmail = process.env.DEFAULT_USER_EMAIL || 'admin@example.com';
-    const defaultPassword = process.env.DEFAULT_USER_PASSWORD || 'admin123';
-    const defaultName = process.env.DEFAULT_USER_NAME || 'Administrator';
+    const defaultEmail = process.env.DEFAULT_USER_EMAIL || "admin@example.com";
+    const defaultPassword = process.env.DEFAULT_USER_PASSWORD || "admin123";
+    const defaultName = process.env.DEFAULT_USER_NAME || "Administrator";
 
-    // Check if admin user exists
     const [rows] = await connection.execute(
-      'SELECT id FROM users WHERE email = ?',
+      "SELECT id FROM users WHERE email = ?",
       [defaultEmail]
     );
-
-    if ((rows as any[]).length === 0) {
-      // Hash the password programmatically
+    const userRows = rows as Array<{ id: number }>;
+    if (userRows.length === 0) {
       const saltRounds = 10;
-      const defaultPasswordHash = await bcrypt.hash(defaultPassword, saltRounds);
-
+      const defaultPasswordHash = await bcrypt.hash(
+        defaultPassword,
+        saltRounds
+      );
       await connection.execute(
-        'INSERT INTO users (email, password_hash, name, first_login) VALUES (?, ?, ?, ?)',
+        "INSERT INTO users (email, password_hash, name, first_login) VALUES (?, ?, ?, ?)",
         [defaultEmail, defaultPasswordHash, defaultName, true]
       );
-
-      console.log(`✅ Default admin user created (${defaultEmail} / ${defaultPassword})`);
+      console.log(
+        `✅ Default admin user created (${defaultEmail} / ${defaultPassword})`
+      );
     }
-  } catch (error: any) {
-    logError('❌ Failed to insert default data:', error.message || error);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    logError("❌ Failed to insert default data:", msg);
   }
 }
 
 // Migration runner functions
 export async function runMigrations(): Promise<void> {
   try {
-    const migrationsDir = path.join(process.cwd(), 'migrations');
+    const migrationsDir = path.join(process.cwd(), "migrations");
 
     // Check if migrations directory exists
     try {
       await fs.access(migrationsDir);
     } catch {
-      console.log('📁 No migrations directory found, skipping migrations');
+      console.log("📁 No migrations directory found, skipping migrations");
       return;
     }
 
     // Get all SQL files from migrations directory
     const files = await fs.readdir(migrationsDir);
-    const sqlFiles = files
-      .filter(file => file.endsWith('.sql'))
-      .sort(); // Sort to ensure consistent execution order
+    const sqlFiles = files.filter((file) => file.endsWith(".sql")).sort(); // Sort to ensure consistent execution order
 
     if (sqlFiles.length === 0) {
-      console.log('📁 No migration files found');
+      console.log("📁 No migration files found");
       return;
     }
 
@@ -220,13 +267,20 @@ export async function runMigrations(): Promise<void> {
       const [executedRows] = await connection.execute(
         'SELECT filename FROM migrations WHERE status = "success"'
       );
-      const executedMigrations = (executedRows as any[]).map(row => row.filename);
+      interface MigrationRow {
+        filename: string;
+      }
+      const executedMigrations = (executedRows as MigrationRow[]).map(
+        (row) => row.filename
+      );
 
       // Filter out already executed migrations
-      const pendingMigrations = sqlFiles.filter(file => !executedMigrations.includes(file));
+      const pendingMigrations = sqlFiles.filter(
+        (file) => !executedMigrations.includes(file)
+      );
 
       if (pendingMigrations.length === 0) {
-        console.log('✅ All migrations are up to date');
+        console.log("✅ All migrations are up to date");
         return;
       }
 
@@ -237,12 +291,13 @@ export async function runMigrations(): Promise<void> {
         await executeMigration(connection, migrationsDir, filename);
       }
 
-      console.log('✅ All migrations completed successfully');
+      console.log("✅ All migrations completed successfully");
     } finally {
       connection.release();
     }
-  } catch (error: any) {
-    logError('❌ Migration execution failed:', error.message || error);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    logError("❌ Migration execution failed:", msg);
     throw error;
   }
 }
@@ -257,13 +312,13 @@ async function executeMigration(
 
     // Read migration file
     const filePath = path.join(migrationsDir, filename);
-    const migrationSQL = await fs.readFile(filePath, 'utf8');
+    const migrationSQL = await fs.readFile(filePath, "utf8");
 
     // Split SQL statements by semicolon and filter out empty statements
     const statements = migrationSQL
-      .split(';')
-      .map(stmt => stmt.trim())
-      .filter(stmt => stmt.length > 0 && !stmt.startsWith('--'));
+      .split(";")
+      .map((stmt) => stmt.trim())
+      .filter((stmt) => stmt.length > 0 && !stmt.startsWith("--"));
 
     // Execute each statement
     for (const statement of statements) {
@@ -289,20 +344,27 @@ async function executeMigration(
         [filename, error instanceof Error ? error.message : String(error)]
       );
     } catch (recordError) {
-      logError('❌ Failed to record migration error:', recordError);
+      logError("❌ Failed to record migration error:", recordError);
     }
 
     throw error;
   }
 }
 
-export async function getMigrationStatus(): Promise<any[]> {
+export interface MigrationStatusRecord {
+  filename: string;
+  executed_at: Date;
+  status: string;
+  error_message: string | null;
+}
+
+export async function getMigrationStatus(): Promise<MigrationStatusRecord[]> {
   const connection = await pool.getConnection();
   try {
     const [rows] = await connection.execute(
-      'SELECT filename, executed_at, status, error_message FROM migrations ORDER BY executed_at DESC'
+      "SELECT filename, executed_at, status, error_message FROM migrations ORDER BY executed_at DESC"
     );
-    return rows as any[];
+    return rows as MigrationStatusRecord[];
   } finally {
     connection.release();
   }

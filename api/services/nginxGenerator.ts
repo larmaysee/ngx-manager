@@ -2,12 +2,12 @@
  * Nginx Configuration Generator Service
  * Generates nginx configuration files for proxy configurations
  */
-import fs from 'fs/promises';
-import path from 'path';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { pool } from '../config/database.js';
-import { logError } from '../utils/errorHandler.js';
+import fs from "fs/promises";
+import path from "path";
+import { exec } from "child_process";
+import { promisify } from "util";
+import { pool } from "../config/database.js";
+import { logError } from "../utils/errorHandler.js";
 
 const execAsync = promisify(exec);
 
@@ -27,9 +27,9 @@ class NginxGenerator {
 
   constructor() {
     // In Docker environment, nginx config will be mounted
-    this.configDir = process.env.NGINX_CONFIG_DIR || '/etc/nginx';
-    this.sitesAvailable = path.join(this.configDir, 'sites-available');
-    this.sitesEnabled = path.join(this.configDir, 'sites-enabled');
+    this.configDir = process.env.NGINX_CONFIG_DIR || "/etc/nginx";
+    this.sitesAvailable = path.join(this.configDir, "sites-available");
+    this.sitesEnabled = path.join(this.configDir, "sites-enabled");
   }
 
   /**
@@ -128,10 +128,10 @@ class NginxGenerator {
       await fs.mkdir(this.sitesEnabled, { recursive: true });
 
       // Write configuration file
-      await fs.writeFile(filePath, config, 'utf8');
+      await fs.writeFile(filePath, config, "utf8");
 
       // Enable the site if proxy is active
-      if (proxy.status === 'active') {
+      if (proxy.status === "active") {
         await this.enableSite(proxy.domain);
       } else {
         await this.disableSite(proxy.domain);
@@ -155,7 +155,7 @@ class NginxGenerator {
       // Remove existing symlink if it exists
       try {
         await fs.unlink(enabledPath);
-      } catch (error) {
+      } catch {
         // Ignore if file doesn't exist
       }
 
@@ -178,7 +178,7 @@ class NginxGenerator {
       console.log(`Disabled site: ${domain}`);
     } catch (error) {
       // Ignore if file doesn't exist
-      if (error.code !== 'ENOENT') {
+      if (error.code !== "ENOENT") {
         logError(`Error disabling site ${domain}:`, error);
         throw error;
       }
@@ -199,7 +199,7 @@ class NginxGenerator {
 
       console.log(`Removed nginx config for ${domain}`);
     } catch (error) {
-      if (error.code !== 'ENOENT') {
+      if (error.code !== "ENOENT") {
         logError(`Error removing nginx config for ${domain}:`, error);
         throw error;
       }
@@ -212,14 +212,14 @@ class NginxGenerator {
   async reloadNginx(): Promise<void> {
     try {
       // Test nginx configuration first
-      await execAsync('nginx -t');
+      await execAsync("nginx -t");
 
       // Reload nginx
-      await execAsync('nginx -s reload');
+      await execAsync("nginx -s reload");
 
-      console.log('Nginx configuration reloaded successfully');
+      console.log("Nginx configuration reloaded successfully");
     } catch (error) {
-      logError('Error reloading nginx:', error);
+      logError("Error reloading nginx:", error);
       throw new Error(`Failed to reload nginx: ${error.message}`);
     }
   }
@@ -232,7 +232,7 @@ class NginxGenerator {
       const connection = await pool.getConnection();
       try {
         const [rows] = await connection.execute(
-          'SELECT id, domain, target_host, target_port, ssl_enabled, status FROM proxies'
+          "SELECT id, domain, target_host, target_port, ssl_enabled, status FROM proxies"
         );
 
         const proxies = rows as ProxyConfig[];
@@ -250,7 +250,7 @@ class NginxGenerator {
         connection.release();
       }
     } catch (error) {
-      logError('Error generating all nginx configs:', error);
+      logError("Error generating all nginx configs:", error);
       throw error;
     }
   }
@@ -263,19 +263,19 @@ class NginxGenerator {
       const connection = await pool.getConnection();
       try {
         // Get all domains from database
-        const [rows] = await connection.execute(
-          'SELECT domain FROM proxies'
-        );
+        const [rows] = await connection.execute("SELECT domain FROM proxies");
 
-        const activeDomains = new Set((rows as any[]).map(row => row.domain));
+        const activeDomains = new Set(
+          (rows as { domain: string }[]).map((row) => row.domain)
+        );
 
         // Get all config files
         const configFiles = await fs.readdir(this.sitesAvailable);
 
         // Remove configs for domains that no longer exist
         for (const file of configFiles) {
-          if (file.endsWith('.conf')) {
-            const domain = file.replace('.conf', '');
+          if (file.endsWith(".conf")) {
+            const domain = file.replace(".conf", "");
             if (!activeDomains.has(domain)) {
               await this.removeProxyConfig(domain);
               console.log(`Cleaned up orphaned config: ${domain}`);
@@ -286,7 +286,7 @@ class NginxGenerator {
         connection.release();
       }
     } catch (error) {
-      logError('Error cleaning up orphaned configs:', error);
+      logError("Error cleaning up orphaned configs:", error);
       throw error;
     }
   }
