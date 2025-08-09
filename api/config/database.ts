@@ -452,9 +452,9 @@ async function executeMigration(
       }
     }
 
-    // Record successful migration
+    // Upsert successful migration (handles reruns after a previous failure)
     await connection.execute(
-      'INSERT INTO migrations (filename, status) VALUES (?, "success")',
+      'INSERT INTO migrations (filename, status, error_message) VALUES (?, "success", NULL) ON DUPLICATE KEY UPDATE status="success", error_message=NULL, executed_at=CURRENT_TIMESTAMP',
       [filename]
     );
 
@@ -465,7 +465,7 @@ async function executeMigration(
     // Record failed migration
     try {
       await connection.execute(
-        'INSERT INTO migrations (filename, status, error_message) VALUES (?, "failed", ?)',
+        'INSERT INTO migrations (filename, status, error_message) VALUES (?, "failed", ?) ON DUPLICATE KEY UPDATE status="failed", error_message=VALUES(error_message), executed_at=CURRENT_TIMESTAMP',
         [filename, error instanceof Error ? error.message : String(error)]
       );
     } catch (recordError) {

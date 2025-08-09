@@ -14,7 +14,6 @@ import {
 } from "../middleware/validation.js";
 import {
   logError,
-  createDatabaseError,
   createNotFoundError,
   createConflictError,
   asyncHandler,
