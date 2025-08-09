@@ -3,11 +3,11 @@
  * Handle SSL certificate operations, status, and renewal
  */
 import express, { Request, Response } from 'express';
-import pool from '../config/database';
-import { authenticateToken } from '../middleware/auth';
-import { idValidation, handleValidationErrors, sanitizeInput } from '../middleware/validation';
-import certbotService from '../services/certbotService';
-import { logError, createDatabaseError, createNotFoundError, createValidationError, asyncHandler } from '../utils/errorHandler';
+import pool from '../config/database.js';
+import { authenticateToken } from '../middleware/auth.js';
+import { idValidation, handleValidationErrors, sanitizeInput } from '../middleware/validation.js';
+import certbotService from '../services/certbotService.js';
+import { logError, createDatabaseError, createNotFoundError, createValidationError, asyncHandler } from '../utils/errorHandler.js';
 
 const router = express.Router();
 

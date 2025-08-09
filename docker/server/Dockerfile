@@ -22,4 +22,4 @@ RUN pnpm run build:server
 EXPOSE 5000
 
 # Start the server
-CMD ["node", "dist/api/server.js"]
+CMD ["node", "--es-module-specifier-resolution=node", "dist/api/server.js"]

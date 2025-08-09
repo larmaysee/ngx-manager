@@ -3,23 +3,23 @@
  * Handle CRUD operations for proxy configurations
  */
 import { Router, type Request, type Response } from 'express';
-import { pool } from '../config/database';
-import { authenticateToken } from '../middleware/auth';
+import { pool } from '../config/database.js';
+import { authenticateToken } from '../middleware/auth.js';
 import { 
   proxyValidation, 
   proxyUpdateValidation, 
   idValidation, 
   handleValidationErrors,
   sanitizeInput 
-} from '../middleware/validation';
+} from '../middleware/validation.js';
 import { 
   logError, 
   createDatabaseError, 
   createNotFoundError, 
   createConflictError,
   asyncHandler 
-} from '../utils/errorHandler';
-import nginxGenerator from '../services/nginxGenerator';
+} from '../utils/errorHandler.js';
+import nginxGenerator from '../services/nginxGenerator.js';
 
 const router = Router();
 

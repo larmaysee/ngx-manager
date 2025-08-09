@@ -6,8 +6,8 @@ import { Router, type Request, type Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import pool from '../config/database';
-import { authenticateToken, blacklistToken, generateTokenId } from '../middleware/auth';
+import pool from '../config/database.js';
+import { authenticateToken, blacklistToken, generateTokenId } from '../middleware/auth.js';
 import { body, validationResult } from 'express-validator';
 import rateLimit from 'express-rate-limit';
 import { 
@@ -16,8 +16,9 @@ import {
   createAuthenticationError, 
   createDatabaseError,
   createNotFoundError,
+
   asyncHandler 
-} from '../utils/errorHandler';
+} from '../utils/errorHandler.js';
 
 // Enhanced rate limiting for auth endpoints
 const authRateLimit = rateLimit({

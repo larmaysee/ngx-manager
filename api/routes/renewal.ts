@@ -3,16 +3,16 @@
  * Handle renewal monitoring, statistics, and manual triggers
  */
 import { Router, type Request, type Response } from 'express';
-import pool from '../config/database';
-import { authenticateToken } from '../middleware/auth';
+import pool from '../config/database.js';
+import { authenticateToken } from '../middleware/auth.js';
 import { 
   paginationValidation, 
   domainValidation, 
   handleValidationErrors,
   sanitizeInput 
-} from '../middleware/validation';
-import { renewalScheduler } from '../services/renewalScheduler';
-import { logError, createDatabaseError, asyncHandler } from '../utils/errorHandler';
+} from '../middleware/validation.js';
+import { renewalScheduler } from '../services/renewalScheduler.js';
+import { logError, createDatabaseError, asyncHandler } from '../utils/errorHandler.js';
 
 const router = Router();
 

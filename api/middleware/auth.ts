@@ -3,9 +3,9 @@
  */
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import pool from '../config/database';
+import pool from '../config/database.js';
 import crypto from 'crypto';
-import { logError } from '../utils/errorHandler';
+import { logError } from '../utils/errorHandler.js';
 
 // Extend Request interface to include user
 declare global {

@@ -6,9 +6,9 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs/promises';
 import path from 'path';
-import { pool } from '../config/database';
-import nginxGenerator from './nginxGenerator';
-import { logError } from '../utils/errorHandler';
+import { pool } from '../config/database.js';
+import nginxGenerator from './nginxGenerator.js';
+import { logError } from '../utils/errorHandler.js';
 
 const execAsync = promisify(exec);
 

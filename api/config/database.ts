@@ -6,7 +6,7 @@ import bcrypt from 'bcrypt';
 import dotenv from 'dotenv';
 import fs from 'fs/promises';
 import path from 'path';
-import { logError } from '../utils/errorHandler';
+import { logError } from '../utils/errorHandler.js';
 
 dotenv.config();
 

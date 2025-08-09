@@ -6,8 +6,8 @@ import fs from 'fs/promises';
 import path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { pool } from '../config/database';
-import { logError } from '../utils/errorHandler';
+import { pool } from '../config/database.js';
+import { logError } from '../utils/errorHandler.js';
 
 const execAsync = promisify(exec);
 

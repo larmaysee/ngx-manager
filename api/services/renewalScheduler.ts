@@ -3,9 +3,9 @@
  * Background job system for automatic SSL certificate renewal
  */
 import cron from 'node-cron';
-import { pool } from '../config/database';
-import certbotService from './certbotService';
-import { logError } from '../utils/errorHandler';
+import { pool } from '../config/database.js';
+import certbotService from './certbotService.js';
+import { logError } from '../utils/errorHandler.js';
 
 export class RenewalScheduler {
   private isRunning: boolean = false;

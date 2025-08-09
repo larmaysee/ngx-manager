@@ -10,12 +10,12 @@ import { fileURLToPath } from 'url';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import winston from 'winston';
-import { errorHandler } from './utils/errorHandler';
-import authRoutes from './routes/auth';
-import proxyRoutes from './routes/proxies';
-import sslRoutes from './routes/ssl';
-import renewalRoutes from './routes/renewal';
-import { initializeDatabase } from './config/database';
+import { errorHandler } from './utils/errorHandler.js';
+import authRoutes from './routes/auth.js';
+import proxyRoutes from './routes/proxies.js';
+import sslRoutes from './routes/ssl.js';
+import renewalRoutes from './routes/renewal.js';
+import { initializeDatabase } from './config/database.js';
 
 // for esm mode
 const __filename = fileURLToPath(import.meta.url);
@@ -175,14 +175,5 @@ app.use((req: Request, res: Response) => {
  * Error handling middleware (must be last)
  */
 app.use(errorHandler);
-
-/**
- * Start server
- */
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  logger.info(`🚀 Server running on port ${PORT}`);
-  console.log(`🚀 Server running on port ${PORT}`);
-});
 
 export default app;

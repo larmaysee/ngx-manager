@@ -4,7 +4,7 @@ services:
   # MySQL Database
   db:
     image: mysql:8.0
-    container_name: ngx_manager_db
+    container_name: ngx_manager_mysql_db
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: rootpassword
@@ -24,7 +24,7 @@ services:
     build:
       context: .
       dockerfile: docker/server/Dockerfile
-    container_name: ngx_manager_server
+    container_name: ngx_manager_backend_server
     restart: unless-stopped
     environment:
       - NODE_ENV=production
@@ -53,7 +53,7 @@ services:
     build:
       context: .
       dockerfile: docker/client/Dockerfile
-    container_name: ngx_manager_client
+    container_name: ngx_manager_frontend_client
     restart: unless-stopped
     environment:
       - VITE_API_URL=http://server:5000
@@ -67,7 +67,7 @@ services:
   # Nginx Proxy Server
   nginx:
     image: nginx:alpine
-    container_name: ngx_manager_nginx
+    container_name: ngx_manager_nginx_proxy
     restart: unless-stopped
     ports:
       - "80:80"
@@ -88,7 +88,7 @@ services:
   # Certbot for SSL certificates
   certbot:
     image: certbot/certbot
-    container_name: ngx_manager_certbot
+    container_name: ngx_manager_certbot_ssl
     restart: unless-stopped
     volumes:
       - certbot_certs:/etc/letsencrypt
