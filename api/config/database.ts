@@ -7,6 +7,7 @@ import dotenv from "dotenv";
 import fs from "fs/promises";
 import path from "path";
 import { logError } from "../utils/errorHandler.js";
+import { logger } from "./logger.js";
 
 dotenv.config({
   path: path.resolve(process.cwd(), ".env"),
@@ -186,9 +187,6 @@ async function createTables(): Promise<void> {
 
     console.log("✅ Database tables created/verified");
 
-    // Insert default admin user if not exists
-    await insertDefaultData(connection);
-
     // Safeguard: ensure critical user columns exist for older deployments
     try {
       const requiredColumns: { name: string; ddl: string; post?: string }[] = [
@@ -255,6 +253,9 @@ async function createTables(): Promise<void> {
         safeguardErr instanceof Error ? safeguardErr.message : safeguardErr
       );
     }
+
+    // Insert default admin user if not exists (after ensuring required columns)
+    await insertDefaultData(connection);
   } finally {
     connection.release();
   }
@@ -269,6 +270,9 @@ async function insertDefaultData(
     const defaultPassword = process.env.DEFAULT_USER_PASSWORD || "admin123";
     const defaultName = process.env.DEFAULT_USER_NAME || "Administrator";
 
+    logger.info(`Checking for default user: ${defaultEmail}`);
+    logger.info(`Looking for user with name: ${defaultName}`);
+
     const [rows] = await connection.execute(
       "SELECT id FROM users WHERE email = ?",
       [defaultEmail]
@@ -280,10 +284,37 @@ async function insertDefaultData(
         defaultPassword,
         saltRounds
       );
-      await connection.execute(
-        "INSERT INTO users (email, password_hash, name, first_login) VALUES (?, ?, ?, ?)",
-        [defaultEmail, defaultPasswordHash, defaultName, true]
-      );
+      // Determine if 'first_login' column exists (older init.sql may have created table without it)
+      try {
+        const [colCheck] = await connection.execute<mysql.RowDataPacket[]>(
+          `SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'users' AND COLUMN_NAME = 'first_login'`,
+          [dbConfig.database]
+        );
+        const hasFirstLogin = (colCheck as mysql.RowDataPacket[]).length > 0;
+        if (hasFirstLogin) {
+          await connection.execute(
+            "INSERT INTO users (email, password_hash, name, first_login) VALUES (?, ?, ?, ?)",
+            [defaultEmail, defaultPasswordHash, defaultName, true]
+          );
+        } else {
+          await connection.execute(
+            "INSERT INTO users (email, password_hash, name) VALUES (?, ?, ?)",
+            [defaultEmail, defaultPasswordHash, defaultName]
+          );
+        }
+      } catch (insertErr) {
+        const msg =
+          insertErr instanceof Error ? insertErr.message : String(insertErr);
+        // If failed due to unknown column for first_login, attempt fallback insert without it
+        if (msg.includes("Unknown column") && msg.includes("first_login")) {
+          await connection.execute(
+            "INSERT INTO users (email, password_hash, name) VALUES (?, ?, ?)",
+            [defaultEmail, defaultPasswordHash, defaultName]
+          );
+        } else {
+          throw insertErr;
+        }
+      }
       console.log(
         `✅ Default admin user created (${defaultEmail} / ${defaultPassword})`
       );
