@@ -2,17 +2,17 @@
  * SSL Certificate Auto-Renewal Scheduler
  * Background job system for automatic SSL certificate renewal
  */
-import cron from 'node-cron';
-import { pool } from '../config/database.js';
-import certbotService from './certbotService.js';
-import { logError } from '../utils/errorHandler.js';
+import cron, { ScheduledTask } from "node-cron";
+import { pool } from "../config/database.js";
+import certbotService from "./certbotService.js";
+import { logError } from "../utils/errorHandler.js";
 
 export class RenewalScheduler {
   private isRunning: boolean = false;
-  private cronJob: any = null;
+  private cronJob: ScheduledTask | null = null;
 
   constructor() {
-    console.log('RenewalScheduler initialized');
+    console.log("RenewalScheduler initialized");
   }
 
   /**
@@ -21,21 +21,27 @@ export class RenewalScheduler {
    */
   start(): void {
     if (this.isRunning) {
-      console.log('Renewal scheduler is already running');
+      console.log("Renewal scheduler is already running");
       return;
     }
 
     // Schedule to run daily at 2:00 AM
-    this.cronJob = cron.schedule('0 2 * * *', async () => {
-      console.log('Running SSL certificate renewal check...');
-      await this.checkAndRenewCertificates();
-    }, {
-      scheduled: true,
-      timezone: 'UTC'
-    });
+    this.cronJob = cron.schedule(
+      "0 2 * * *",
+      async () => {
+        console.log("Running SSL certificate renewal check...");
+        await this.checkAndRenewCertificates();
+      },
+      {
+        scheduled: true,
+        timezone: "UTC",
+      }
+    );
 
     this.isRunning = true;
-    console.log('SSL certificate renewal scheduler started (runs daily at 2:00 AM UTC)');
+    console.log(
+      "SSL certificate renewal scheduler started (runs daily at 2:00 AM UTC)"
+    );
   }
 
   /**
@@ -47,7 +53,7 @@ export class RenewalScheduler {
       this.cronJob = null;
     }
     this.isRunning = false;
-    console.log('SSL certificate renewal scheduler stopped');
+    console.log("SSL certificate renewal scheduler stopped");
   }
 
   /**
@@ -68,21 +74,32 @@ export class RenewalScheduler {
         ORDER BY s.expires_at ASC
       `);
 
-      const certificates = rows as any[];
+      interface CertRow {
+        id: number;
+        proxy_id: number;
+        domain: string;
+        expires_at: string;
+        user_id: number;
+      }
+      const certificates = rows as CertRow[];
 
       if (certificates.length === 0) {
-        console.log('No certificates require renewal at this time');
+        console.log("No certificates require renewal at this time");
         return;
       }
 
-      console.log(`Found ${certificates.length} certificate(s) that need renewal`);
+      console.log(
+        `Found ${certificates.length} certificate(s) that need renewal`
+      );
 
       for (const cert of certificates) {
         await this.renewCertificate(cert, connection);
       }
-
     } catch (error) {
-      logError('Error during certificate renewal check:', (error as Error).message);
+      logError(
+        "Error during certificate renewal check:",
+        (error as Error).message
+      );
     } finally {
       connection.release();
     }
@@ -91,7 +108,12 @@ export class RenewalScheduler {
   /**
    * Renew a specific certificate
    */
-  private async renewCertificate(cert: any, connection: any): Promise<void> {
+  private async renewCertificate(
+    cert: { id: number; proxy_id: number; domain: string },
+    connection: {
+      execute: (sql: string, params?: unknown[]) => Promise<unknown>;
+    }
+  ): Promise<void> {
     try {
       console.log(`Attempting to renew certificate for domain: ${cert.domain}`);
 
@@ -107,18 +129,18 @@ export class RenewalScheduler {
       const newExpiresAt = new Date();
       newExpiresAt.setDate(newExpiresAt.getDate() + 90); // Let's Encrypt certificates are valid for 90 days
 
-      const [result] = await connection.execute(
+      const insertResult = (await connection.execute(
         `INSERT INTO ssl_certificates (proxy_id, domain, status, expires_at) 
          VALUES (?, ?, 'pending', ?)`,
         [cert.proxy_id, cert.domain, newExpiresAt]
-      );
+      )) as unknown as [{ insertId: number }];
 
-      const newCertificateId = (result as any).insertId;
+      const newCertificateId = insertResult[0].insertId;
 
-      // Attempt to renew the certificate using Certbot
-      const success = await certbotService.renewCertificate(cert.domain);
+      // Attempt to renew the certificate using Certbot (new API returns info)
+      const info = await certbotService.renew(cert.domain);
 
-      if (success) {
+      if (info.status === "valid") {
         // Update certificate status to valid
         await connection.execute(
           `UPDATE ssl_certificates 
@@ -127,10 +149,12 @@ export class RenewalScheduler {
           [newCertificateId]
         );
 
-        console.log(`Successfully renewed certificate for domain: ${cert.domain}`);
+        console.log(
+          `Successfully renewed certificate for domain: ${cert.domain}`
+        );
 
         // Log renewal event
-        await this.logRenewalEvent(cert.domain, 'success', connection);
+        await this.logRenewalEvent(cert.domain, "success", connection);
       } else {
         // Update certificate status to failed
         await connection.execute(
@@ -140,24 +164,35 @@ export class RenewalScheduler {
           [newCertificateId]
         );
 
-        logError(`Failed to renew certificate for domain: ${cert.domain}`, 'Certificate renewal failed');
+        logError(
+          `Failed to renew certificate for domain: ${cert.domain}`,
+          "Certificate renewal failed"
+        );
 
         // Log renewal event
-        await this.logRenewalEvent(cert.domain, 'failed', connection);
+        await this.logRenewalEvent(cert.domain, "failed", connection);
       }
-
     } catch (error) {
-      logError(`Error renewing certificate for domain ${cert.domain}:`, (error as Error).message);
+      logError(
+        `Error renewing certificate for domain ${cert.domain}:`,
+        (error as Error).message
+      );
 
       // Log renewal event
-      await this.logRenewalEvent(cert.domain, 'error', connection);
+      await this.logRenewalEvent(cert.domain, "error", connection);
     }
   }
 
   /**
    * Log renewal events for monitoring and debugging
    */
-  private async logRenewalEvent(domain: string, status: 'success' | 'failed' | 'error', connection: any): Promise<void> {
+  private async logRenewalEvent(
+    domain: string,
+    status: "success" | "failed" | "error",
+    connection: {
+      execute: (sql: string, params?: unknown[]) => Promise<unknown>;
+    }
+  ): Promise<void> {
     try {
       await connection.execute(
         `INSERT INTO renewal_logs (domain, status, created_at) 
@@ -165,14 +200,18 @@ export class RenewalScheduler {
         [domain, status]
       );
     } catch (error) {
-      logError('Error logging renewal event:', (error as Error).message);
+      logError("Error logging renewal event:", (error as Error).message);
     }
   }
 
   /**
    * Get renewal statistics
    */
-  async getRenewalStats(): Promise<any> {
+  async getRenewalStats(): Promise<{
+    certificates_expiring_soon: number;
+    recent_renewals: unknown;
+    scheduler_running: boolean;
+  }> {
     const connection = await pool.getConnection();
 
     try {
@@ -194,10 +233,14 @@ export class RenewalScheduler {
         GROUP BY status
       `);
 
+      interface CountRow {
+        count: number;
+      }
+      const soon = (expiringCerts as CountRow[])[0]?.count || 0;
       return {
-        certificates_expiring_soon: (expiringCerts as any[])[0].count,
+        certificates_expiring_soon: soon,
         recent_renewals: recentRenewals,
-        scheduler_running: this.isRunning
+        scheduler_running: this.isRunning,
       };
     } finally {
       connection.release();
@@ -208,7 +251,7 @@ export class RenewalScheduler {
    * Force renewal check (for testing or manual trigger)
    */
   async forceRenewalCheck(): Promise<void> {
-    console.log('Manual renewal check triggered');
+    console.log("Manual renewal check triggered");
     await this.checkAndRenewCertificates();
   }
 }
