@@ -45,7 +45,7 @@ const SSLCertificates: React.FC = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('auth_token');
-      const response = await fetch('/api/ssl/certificates', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/ssl/certificates`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -84,7 +84,7 @@ const SSLCertificates: React.FC = () => {
     try {
       setRenewingId(certificateToRenew);
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`/api/ssl/certificates/${certificateToRenew}/renew`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/ssl/certificates/${certificateToRenew}/renew`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`

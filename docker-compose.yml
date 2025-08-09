@@ -38,6 +38,8 @@ services:
       - NGINX_CONFIG_PATH=/etc/nginx/conf.d
       - CERTBOT_CERTS_PATH=/etc/letsencrypt
       - CERTBOT_WWW_PATH=/var/www/certbot
+    ports:
+      - "5000:5000"
     volumes:
       - nginx_configs:/etc/nginx/conf.d
       - certbot_certs:/etc/letsencrypt
@@ -53,10 +55,10 @@ services:
     build:
       context: .
       dockerfile: docker/client/Dockerfile
+      args:
+        - VITE_API_URL=http://server:5000
     container_name: ngx_manager_frontend_client
     restart: unless-stopped
-    environment:
-      - VITE_API_URL=http://server:5000
     ports:
       - "3000:3000"
     depends_on:
@@ -75,6 +77,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
+      - nginx_configs:/etc/nginx/conf.d
       - /etc/letsencrypt:/etc/letsencrypt
     depends_on:
       - server

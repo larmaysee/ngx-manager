@@ -60,7 +60,7 @@ const ChangePassword: React.FC<ChangePasswordProps> = ({ onSuccess, isFirstLogin
         throw new Error('No authentication token found');
       }
 
-      const response = await fetch('/api/auth/change-password', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/change-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

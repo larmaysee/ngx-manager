@@ -51,7 +51,7 @@ const Proxies: React.FC = () => {
   // Fetch proxies
   const fetchProxies = async () => {
     try {
-      const response = await fetch('/api/proxies', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/proxies`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
         }
@@ -83,7 +83,7 @@ const Proxies: React.FC = () => {
     setSubmitting(true);
 
     try {
-      const url = editingProxy ? `/api/proxies/${editingProxy.id}` : '/api/proxies';
+      const url = editingProxy ? `${import.meta.env.VITE_API_URL}/api/proxies/${editingProxy.id}` : `${import.meta.env.VITE_API_URL}/api/proxies`;
       const method = editingProxy ? 'PUT' : 'POST';
 
       // Transform form data to match API expectations
@@ -144,7 +144,7 @@ const Proxies: React.FC = () => {
     if (!proxyToDelete) return;
 
     try {
-      const response = await fetch(`/api/proxies/${proxyToDelete}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/proxies/${proxyToDelete}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`

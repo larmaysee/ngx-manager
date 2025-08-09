@@ -70,7 +70,7 @@ const Dashboard: React.FC = () => {
       const token = localStorage.getItem('auth_token');
 
       // Fetch proxies
-      const proxiesResponse = await fetch('/api/proxies', {
+      const proxiesResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/proxies`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -84,7 +84,7 @@ const Dashboard: React.FC = () => {
         setProxies(proxiesArray);
 
         // Fetch SSL certificates
-        const sslResponse = await fetch('/api/ssl/certificates', {
+        const sslResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/ssl/certificates`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
@@ -206,7 +206,7 @@ const Dashboard: React.FC = () => {
         ssl_force_redirect: data.ssl_force_redirect
       };
 
-      const response = await fetch('/api/proxies', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/proxies`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
