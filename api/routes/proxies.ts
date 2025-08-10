@@ -180,9 +180,18 @@ router.post(
 
       const createdProxy = (newProxy as any[])[0];
 
+      const proxyConfig = {
+        id: createdProxy.id,
+        domain: createdProxy.domain,
+        target_host: target_host,
+        target_port: port,
+        ssl_enabled: sslEnabledBool,
+        status: createdProxy.status,
+      };
+
       // Generate nginx configuration
       try {
-        await nginxGenerator.writeProxyConfig(createdProxy);
+        await nginxGenerator.writeProxyConfig(proxyConfig);
         await nginxGenerator.reloadNginx();
       } catch (nginxError) {
         logError(nginxError, "Nginx Config Generation", req.user?.id);
