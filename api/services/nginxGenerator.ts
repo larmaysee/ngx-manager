@@ -50,7 +50,8 @@ class NginxGenerator {
       config += `}\n\n`;
 
       config += `server {\n`;
-      config += `    listen 443 ssl http2;\n`;
+      config += `    listen 443 ssl;\n`;
+      config += `    http2 on;\n`;
       config += `    server_name ${domain};\n\n`;
 
       config += `    # SSL Configuration\n`;

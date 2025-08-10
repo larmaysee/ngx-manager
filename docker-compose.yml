@@ -79,6 +79,10 @@ services:
     volumes:
       - nginx_configs:/etc/nginx/conf.d
       - /etc/letsencrypt:/etc/letsencrypt
+    # Allow containers to reach services running on the host machine using host.docker.internal
+    # "host-gateway" ensures it also works on Linux with Docker 20.10+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - server
       - client
