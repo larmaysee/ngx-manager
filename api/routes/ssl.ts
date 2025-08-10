@@ -18,7 +18,7 @@ import {
   createValidationError,
   asyncHandler,
 } from "../utils/errorHandler.js";
-import { logger } from "api/config/logger.js";
+import { logger } from "../config/logger.js";
 
 const router = express.Router();
 
