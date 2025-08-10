@@ -1,5 +1,6 @@
 import { exec } from "child_process";
 import http from "http";
+import dns from "dns/promises";
 import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
@@ -295,26 +296,94 @@ class CertbotService {
     timeoutMs = 4000
   ): Promise<{
     domain: string;
+    ip?: string;
+    ips?: string[];
     reachable: boolean;
     statusCode?: number;
     error?: string;
+    private?: boolean;
   }> {
-    return new Promise((resolve) => {
-      const req = http.get(
-        { host: domain, path: "/", port: 80, timeout: timeoutMs },
-        (res) => {
-          res.resume();
-          resolve({ domain, reachable: true, statusCode: res.statusCode });
+    const resultBase: { domain: string } = { domain };
+    try {
+      // DNS resolution (A / AAAA)
+      let lookupEntries: Array<{ address: string; family: number }> = [];
+      try {
+        lookupEntries = await dns.lookup(domain, { all: true });
+      } catch {
+        return { ...resultBase, reachable: false, error: "dns_lookup_failed" };
+      }
+      const ips = Array.from(new Set(lookupEntries.map((r) => r.address)));
+      const primaryIp = ips[0];
+      // Private / loopback detection
+      const isPrivate = (ip: string): boolean => {
+        if (ip.startsWith("10.")) return true;
+        if (ip.startsWith("127.")) return true;
+        if (ip.startsWith("192.168.")) return true;
+        const octets = ip.split(".").map(Number);
+        if (octets.length === 4) {
+          if (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31)
+            return true;
         }
-      );
-      req.on("timeout", () => {
-        req.destroy();
-        resolve({ domain, reachable: false, error: "timeout" });
+        // Simple IPv6 private checks
+        if (ip.startsWith("fc") || ip.startsWith("fd") || ip === "::1")
+          return true;
+        return false;
+      };
+      const privateIp = primaryIp ? isPrivate(primaryIp) : false;
+
+      // If private IP, we can return early (Let’s Encrypt HTTP-01 won’t work publicly)
+      if (privateIp) {
+        return {
+          ...resultBase,
+          ip: primaryIp,
+          ips,
+          reachable: false,
+          private: true,
+          error: "private_ip_unreachable_publicly",
+        };
+      }
+
+      // Attempt HTTP request
+      return await new Promise((resolve) => {
+        const req = http.get(
+          { host: domain, path: "/", port: 80, timeout: timeoutMs },
+          (res) => {
+            res.resume();
+            resolve({
+              domain,
+              ip: primaryIp,
+              ips,
+              reachable: true,
+              statusCode: res.statusCode,
+              private: false,
+            });
+          }
+        );
+        req.on("timeout", () => {
+          req.destroy();
+          resolve({
+            domain,
+            ip: primaryIp,
+            ips,
+            reachable: false,
+            error: "timeout",
+            private: false,
+          });
+        });
+        req.on("error", (err) =>
+          resolve({
+            domain,
+            ip: primaryIp,
+            ips,
+            reachable: false,
+            error: err.message,
+            private: false,
+          })
+        );
       });
-      req.on("error", (err) =>
-        resolve({ domain, reachable: false, error: err.message })
-      );
-    });
+    } catch {
+      return { ...resultBase, reachable: false, error: "unexpected_error" };
+    }
   }
 }
 

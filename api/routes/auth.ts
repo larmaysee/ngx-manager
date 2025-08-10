@@ -3,6 +3,7 @@
  * Handle user registration, login, token management, etc.
  */
 import { Router, type Request, type Response } from "express";
+import type { RowDataPacket, ResultSetHeader } from "mysql2";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import pool from "../config/database.js";
@@ -59,7 +60,8 @@ const validatePassword = (
     errors.push("Password must contain at least one number");
   }
 
-  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+  // Require at least one special character (common ASCII punctuation)
+  if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) {
     errors.push("Password must contain at least one special character");
   }
 
@@ -149,7 +151,7 @@ const checkPasswordHistory = async (
     const historyLimit = parseInt(process.env.PASSWORD_HISTORY_LIMIT || "5");
 
     // Get recent password hashes
-    let rows: any[] = [];
+    let rows: Array<{ password_hash: string }> = [];
     const limit =
       Number.isFinite(historyLimit) && historyLimit > 0 ? historyLimit : 5;
     try {
@@ -157,7 +159,7 @@ const checkPasswordHistory = async (
         `SELECT password_hash FROM password_history WHERE user_id = ? ORDER BY created_at DESC LIMIT ${limit}`,
         [userId]
       );
-      rows = result as any[];
+      rows = result as Array<{ password_hash: string }>;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("password_history") && msg.includes("doesn't exist")) {
@@ -289,12 +291,12 @@ router.post(
     const connection = await pool.getConnection();
     try {
       // Check if user already exists
-      const [existingUsers] = await connection.execute(
+      const [existingUsers] = await connection.execute<RowDataPacket[]>(
         "SELECT id FROM users WHERE email = ?",
         [email.toLowerCase()]
       );
 
-      if ((existingUsers as any[]).length > 0) {
+      if (existingUsers.length > 0) {
         res.status(409).json({
           success: false,
           error: "User with this email already exists",
@@ -307,12 +309,11 @@ router.post(
       const passwordHash = await bcrypt.hash(password, saltRounds);
 
       // Create user
-      const [result] = await connection.execute(
+      const [result] = await connection.execute<ResultSetHeader>(
         "INSERT INTO users (email, password_hash, name, created_at, password_changed_at) VALUES (?, ?, ?, NOW(), NOW())",
         [email.toLowerCase(), passwordHash, name.trim()]
       );
-
-      const userId = (result as any).insertId;
+      const userId = result.insertId;
 
       // Add initial password to history
       await addPasswordToHistory(userId, passwordHash);
@@ -381,13 +382,12 @@ router.post(
     const connection = await pool.getConnection();
     try {
       // Get user from database
-      const [rows] = await connection.execute(
+      const [rows] = await connection.execute<RowDataPacket[]>(
         "SELECT id, email, password_hash, name, first_login, last_login FROM users WHERE email = ?",
         [normalizedEmail]
       );
 
-      const users = rows as any[];
-      if (users.length === 0) {
+      if (rows.length === 0) {
         recordFailedAttempt(normalizedEmail);
         res.status(401).json({
           success: false,
@@ -395,8 +395,15 @@ router.post(
         });
         return;
       }
-
-      const user = users[0];
+      interface UserLoginRow extends RowDataPacket {
+        id: number;
+        email: string;
+        password_hash: string;
+        name: string;
+        first_login: 0 | 1;
+        last_login: Date | null;
+      }
+      const user = rows[0] as UserLoginRow;
 
       // Verify password
       const isPasswordValid = await bcrypt.compare(
@@ -457,7 +464,7 @@ router.get(
         id: req.user?.id,
         email: req.user?.email,
         name: req.user?.name,
-        first_login: (req.user as any)?.first_login,
+        first_login: req.user?.first_login,
       },
     });
   })
@@ -481,6 +488,7 @@ router.put(
       }
       return true;
     }),
+    body("email").optional().isEmail().withMessage("Invalid email format"),
     body("name")
       .optional()
       .isLength({ min: 2, max: 100 })
@@ -498,10 +506,11 @@ router.put(
       return;
     }
 
-    const { currentPassword, newPassword, name } = req.body as {
+    const { currentPassword, newPassword, name, email } = req.body as {
       currentPassword: string;
       newPassword: string;
       name?: string;
+      email?: string;
     };
     const userId = req.user?.id;
 
@@ -521,16 +530,22 @@ router.put(
     const connection = await pool.getConnection();
     try {
       // Get current user data
-      const [users] = (await connection.execute(
-        "SELECT password_hash, first_login, name FROM users WHERE id = ?",
+      const [users] = await connection.execute<RowDataPacket[]>(
+        "SELECT id, email, password_hash, first_login, name FROM users WHERE id = ?",
         [userId]
-      )) as any;
+      );
 
-      if (!Array.isArray(users) || users.length === 0) {
+      if (users.length === 0) {
         throw createNotFoundError("User not found");
       }
-
-      const user = users[0];
+      interface UserRow extends RowDataPacket {
+        id: number;
+        email: string;
+        password_hash: string;
+        first_login: 0 | 1;
+        name: string;
+      }
+      const user = users[0] as UserRow;
 
       // If first login enforce providing a different name (optional business rule)
       if (user.first_login) {
@@ -571,35 +586,71 @@ router.put(
       const saltRounds = 12;
       const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
 
-      // Update password (and name / first_login if applicable)
-      if (user.first_login) {
-        await connection.execute(
-          "UPDATE users SET password_hash = ?, password_changed_at = NOW(), first_login = 0, name = ? WHERE id = ?",
-          [hashedNewPassword, name ?? user.name, userId]
+      // Determine if email change requested
+      let normalizedEmail: string | undefined;
+      if (email && email.toLowerCase() !== user.email.toLowerCase()) {
+        normalizedEmail = email.toLowerCase();
+        // Ensure new email not already in use
+        const [existing] = await connection.execute<RowDataPacket[]>(
+          "SELECT id FROM users WHERE email = ? AND id <> ?",
+          [normalizedEmail, userId]
         );
-      } else if (name && name.trim() && name.trim() !== user.name) {
-        await connection.execute(
-          "UPDATE users SET password_hash = ?, password_changed_at = NOW(), name = ? WHERE id = ?",
-          [hashedNewPassword, name.trim(), userId]
-        );
-      } else {
-        await connection.execute(
-          "UPDATE users SET password_hash = ?, password_changed_at = NOW() WHERE id = ?",
-          [hashedNewPassword, userId]
-        );
+        if (existing.length > 0) {
+          res
+            .status(409)
+            .json({ success: false, error: "Email already in use" });
+          return;
+        }
       }
+
+      // Build dynamic update fields
+      const updateFields: string[] = [
+        "password_hash = ?",
+        "password_changed_at = NOW()",
+      ];
+      const updateValues: (string | number)[] = [hashedNewPassword];
+      if (user.first_login) {
+        updateFields.push("first_login = 0");
+      }
+      if (name && name.trim() && name.trim() !== user.name) {
+        updateFields.push("name = ?");
+        updateValues.push(name.trim());
+      } else if (user.first_login && name) {
+        updateFields.push("name = ?");
+        updateValues.push(name.trim());
+      }
+      if (normalizedEmail) {
+        updateFields.push("email = ?");
+        updateValues.push(normalizedEmail);
+      }
+      updateValues.push(userId);
+      await connection.execute(
+        `UPDATE users SET ${updateFields.join(", ")} WHERE id = ?`,
+        updateValues
+      );
 
       // Add new password to history
       await addPasswordToHistory(userId, hashedNewPassword);
 
       // Fetch updated user to return
-      const [updatedRows] = await connection.execute(
+      const [updatedRows] = await connection.execute<RowDataPacket[]>(
         "SELECT id, email, name, first_login FROM users WHERE id = ?",
         [userId]
       );
-      const updated = Array.isArray(updatedRows)
-        ? (updatedRows as any[])[0]
-        : null;
+      const updated = updatedRows.length > 0 ? updatedRows[0] : null;
+
+      // If email changed, return a fresh token (old token will soon be invalidated by password change check)
+      let newToken: string | undefined;
+      if (normalizedEmail) {
+        try {
+          newToken = generateSecureJWT(userId, normalizedEmail);
+        } catch (e) {
+          logError(
+            "Token generation after email change failed",
+            (e as Error).message
+          );
+        }
+      }
 
       res.json({
         success: true,
@@ -607,6 +658,7 @@ router.put(
           ? "First-time setup completed successfully"
           : "Password updated successfully",
         user: updated,
+        token: newToken,
       });
     } catch (error) {
       logError(error, "Change Password", req.user?.id);

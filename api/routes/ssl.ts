@@ -18,6 +18,7 @@ import {
   createValidationError,
   asyncHandler,
 } from "../utils/errorHandler.js";
+import { logger } from "api/config/logger.js";
 
 const router = express.Router();
 
@@ -149,6 +150,9 @@ router.post(
     if (!domains.length) {
       throw createValidationError("domains array required");
     }
+
+    logger.info("Testing domain reachability", { domains });
+
     const checks = await Promise.all(
       domains.map((d) => certbotService.testDomain(d.trim()))
     );
