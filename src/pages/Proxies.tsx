@@ -1,24 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import ProxyForm, { type ProxyFormValues } from "@/components/ProxyForm";
+// Table presentation refactored into shared component
+import ProxyTable, { type ProxyRecord } from "@/components/ProxyTable";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -33,29 +23,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import Navigation from "@/components/Navigation";
-import { Plus, Edit, Trash2, Globe, Shield } from "lucide-react";
-import { useForm, Controller } from "react-hook-form";
+import PortalLayout from "@/components/PortalLayout";
+import { Plus, Globe } from "lucide-react";
+// Form state handled inside ProxyForm
 
-interface Proxy {
-  id: number;
-  domain: string;
-  target_host: string;
-  target_port: number;
-  ssl_enabled: boolean;
-  ssl_force_redirect?: boolean;
-  status: "active" | "inactive" | "error";
-  created_at: string;
-  updated_at: string;
-}
+type Proxy = ProxyRecord;
 
-interface ProxyFormData {
-  domain: string;
-  target_host: string;
-  target_port: number;
-  ssl_enabled: boolean;
-  ssl_force_redirect: boolean;
-}
+// Replaced by ProxyFormValues
 
 const Proxies: React.FC = () => {
   useAuth(); // ensure auth context hook runs (e.g., for redirect) without unused var
@@ -68,23 +42,7 @@ const Proxies: React.FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [proxyToDelete, setProxyToDelete] = useState<number | null>(null);
 
-  const {
-    control,
-    register,
-    handleSubmit,
-    reset,
-    setValue,
-    formState: { errors },
-  } = useForm<ProxyFormData>({
-    defaultValues: {
-      domain: "",
-      target_host: "",
-      // Initialize as empty string; will be converted to number on submit
-      target_port: "" as unknown as number,
-      ssl_enabled: false,
-      ssl_force_redirect: false,
-    },
-  });
+  // Local page no longer manages individual form inputs
 
   // Fetch proxies
   const fetchProxies = async () => {
@@ -122,7 +80,7 @@ const Proxies: React.FC = () => {
   }, []);
 
   // Handle form submission
-  const onSubmit = async (data: ProxyFormData) => {
+  const handleSave = async (data: ProxyFormValues) => {
     setSubmitting(true);
 
     try {
@@ -132,13 +90,7 @@ const Proxies: React.FC = () => {
       const method = editingProxy ? "PUT" : "POST";
 
       // Transform form data to match API expectations
-      const apiData = {
-        domain: data.domain,
-        target_host: data.target_host,
-        target_port: data.target_port,
-        ssl_enabled: !!data.ssl_enabled,
-        ssl_force_redirect: !!data.ssl_force_redirect,
-      };
+      const apiData = { ...data };
 
       const response = await fetch(url, {
         method,
@@ -166,7 +118,6 @@ const Proxies: React.FC = () => {
       await fetchProxies();
 
       // Reset form
-      reset();
       setDialogOpen(false);
       setEditingProxy(null);
     } catch (err) {
@@ -228,33 +179,16 @@ const Proxies: React.FC = () => {
   // Handle edit
   const handleEdit = (proxy: Proxy) => {
     setEditingProxy(proxy);
-    setValue("domain", proxy.domain);
-    setValue("target_host", proxy.target_host);
-    setValue("target_port", proxy.target_port);
-    setValue("ssl_enabled", proxy.ssl_enabled);
-    setValue("ssl_force_redirect", proxy.ssl_force_redirect);
     setDialogOpen(true);
   };
 
   // Handle add new
   const handleAddNew = () => {
     setEditingProxy(null);
-    reset();
     setDialogOpen(true);
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "active":
-        return <Badge variant="default">Active</Badge>;
-      case "inactive":
-        return <Badge variant="secondary">Inactive</Badge>;
-      case "error":
-        return <Badge variant="destructive">Error</Badge>;
-      default:
-        return <Badge variant="outline">Unknown</Badge>;
-    }
-  };
+  // status badges handled within ProxyTable component
 
   if (loading) {
     return (
@@ -267,9 +201,8 @@ const Proxies: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <PortalLayout>
       <div className="max-w-7xl mx-auto">
-        <Navigation />
         <div className="mb-8">
           <div className="flex justify-between items-center">
             <div>
@@ -299,132 +232,17 @@ const Proxies: React.FC = () => {
                   : "Create a new nginx proxy configuration"}
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="domain">Domain Name</Label>
-                  <Input
-                    id="domain"
-                    placeholder="example.com"
-                    {...register("domain", {
-                      required: "Domain name is required",
-                      pattern: {
-                        value:
-                          /^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$/,
-                        message: "Invalid domain name format",
-                      },
-                    })}
-                  />
-                  {errors.domain && (
-                    <p className="text-sm text-destructive">
-                      {errors.domain.message}
-                    </p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="target_host">Target Host</Label>
-                  <Input
-                    id="target_host"
-                    placeholder="localhost or IP address"
-                    {...register("target_host", {
-                      required: "Target host is required",
-                    })}
-                  />
-                  {errors.target_host && (
-                    <p className="text-sm text-destructive">
-                      {errors.target_host.message}
-                    </p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="target_port">Target Port</Label>
-                  <Input
-                    id="target_port"
-                    type="number"
-                    placeholder="3000"
-                    {...register("target_port", {
-                      required: "Target port is required",
-                      min: {
-                        value: 1,
-                        message: "Port must be between 1 and 65535",
-                      },
-                      max: {
-                        value: 65535,
-                        message: "Port must be between 1 and 65535",
-                      },
-                    })}
-                  />
-                  {errors.target_port && (
-                    <p className="text-sm text-destructive">
-                      {errors.target_port.message}
-                    </p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Controller
-                    name="ssl_enabled"
-                    control={control}
-                    render={({ field }) => (
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="ssl_enabled"
-                          checked={!!field.value}
-                          onCheckedChange={(checked) =>
-                            field.onChange(checked === true)
-                          }
-                        />
-                        <Label htmlFor="ssl_enabled">Enable SSL</Label>
-                      </div>
-                    )}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Controller
-                    name="ssl_force_redirect"
-                    control={control}
-                    render={({ field }) => (
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="ssl_force_redirect"
-                          checked={!!field.value}
-                          onCheckedChange={(checked) =>
-                            field.onChange(checked === true)
-                          }
-                        />
-                        <Label htmlFor="ssl_force_redirect">
-                          Force HTTPS Redirect
-                        </Label>
-                      </div>
-                    )}
-                  />
-                </div>
-              </div>
-
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setDialogOpen(false);
-                    setEditingProxy(null);
-                    reset();
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={submitting}>
-                  {submitting
-                    ? "Saving..."
-                    : editingProxy
-                    ? "Update Proxy"
-                    : "Create Proxy"}
-                </Button>
-              </DialogFooter>
-            </form>
+            <ProxyForm
+              key={editingProxy?.id ?? "new"}
+              mode={editingProxy ? "edit" : "create"}
+              submitting={submitting}
+              initialValues={editingProxy || undefined}
+              onSubmit={handleSave}
+              onCancel={() => {
+                setDialogOpen(false);
+                setEditingProxy(null);
+              }}
+            />
           </DialogContent>
         </Dialog>
 
@@ -447,80 +265,11 @@ const Proxies: React.FC = () => {
         ) : (
           <Card>
             <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Domain</TableHead>
-                    <TableHead>Target</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>SSL</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {proxies.map((proxy) => (
-                    <TableRow key={proxy.id}>
-                      <TableCell className="font-medium">
-                        <div className="flex flex-col">
-                          <span>{proxy.domain}</span>
-                          {proxy.ssl_force_redirect && (
-                            <span className="text-xs text-blue-600">
-                              Force HTTPS redirect
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <span className="font-mono text-sm">
-                          {proxy.target_host}:{proxy.target_port}
-                        </span>
-                      </TableCell>
-                      <TableCell>{getStatusBadge(proxy.status)}</TableCell>
-                      <TableCell>
-                        {proxy.ssl_enabled ? (
-                          <Badge
-                            variant="outline"
-                            className="flex items-center gap-1 w-fit"
-                          >
-                            <Shield className="h-3 w-3" />
-                            Enabled
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary">Disabled</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm text-muted-foreground">
-                          {new Date(proxy.created_at).toLocaleDateString()}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex gap-2 justify-end">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEdit(proxy)}
-                            className="flex items-center gap-1"
-                          >
-                            <Edit className="h-3 w-3" />
-                            Edit
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleDeleteClick(proxy.id)}
-                            className="flex items-center gap-1"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                            Delete
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <ProxyTable
+                proxies={proxies}
+                onEdit={(p) => handleEdit(p)}
+                onDelete={(p) => handleDeleteClick(p.id)}
+              />
             </CardContent>
           </Card>
         )}
@@ -554,7 +303,7 @@ const Proxies: React.FC = () => {
           </AlertDialogContent>
         </AlertDialog>
       </div>
-    </div>
+    </PortalLayout>
   );
 };
 

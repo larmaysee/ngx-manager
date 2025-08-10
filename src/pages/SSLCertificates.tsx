@@ -31,7 +31,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import Navigation from "@/components/Navigation";
+import PortalLayout from "@/components/PortalLayout";
 import {
   Shield,
   RefreshCw,
@@ -347,9 +347,8 @@ const SSLCertificates: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
+      <PortalLayout>
         <div className="max-w-7xl mx-auto">
-          <Navigation />
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
               <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
@@ -357,14 +356,13 @@ const SSLCertificates: React.FC = () => {
             </div>
           </div>
         </div>
-      </div>
+      </PortalLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <PortalLayout>
       <div className="max-w-7xl mx-auto">
-        <Navigation />
         <div className="mb-8">
           <div className="flex justify-between items-center">
             <div>
@@ -698,7 +696,7 @@ const SSLCertificates: React.FC = () => {
           </AlertDialogContent>
         </AlertDialog>
       </div>
-    </div>
+    </PortalLayout>
   );
 };
 

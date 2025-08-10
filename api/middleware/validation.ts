@@ -1,4 +1,4 @@
-import { body, param, query, ValidationChain } from "express-validator";
+import { body, param, query } from "express-validator";
 import { Request, Response, NextFunction } from "express";
 import { validationResult } from "express-validator";
 
@@ -10,9 +10,12 @@ export const commonValidations = {
   email: () =>
     body("email")
       .isEmail()
-      .normalizeEmail()
       .isLength({ max: 255 })
-      .withMessage("Invalid email format or too long"),
+      .withMessage("Invalid email format or too long")
+      .bail()
+      .customSanitizer((v) =>
+        typeof v === "string" ? v.trim().toLowerCase() : v
+      ),
 
   // Password validation
   password: (field: string = "password") =>
@@ -52,9 +55,11 @@ export const commonValidations = {
       .isLength({ min: 1, max: 253 })
       .withMessage("Domain must be between 1 and 253 characters")
       .matches(
-        /^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$/
+        /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/
       )
-      .withMessage("Invalid domain format"),
+      .withMessage(
+        "Invalid domain format (must include at least one dot and valid subdomain/domain)"
+      ),
 
   // Port validation
   port: (field: string = "port") =>
@@ -261,25 +266,16 @@ export const sanitizeInput = (
   next: NextFunction
 ): void => {
   // Recursively sanitize all string values in request body
-  const sanitizeObject = (obj: any): any => {
-    if (typeof obj === "string") {
-      return obj.trim();
-    }
-
-    if (Array.isArray(obj)) {
-      return obj.map(sanitizeObject);
-    }
-
+  const sanitizeObject = (obj: unknown): unknown => {
+    if (typeof obj === "string") return obj.trim();
+    if (Array.isArray(obj)) return obj.map(sanitizeObject);
     if (obj && typeof obj === "object") {
-      const sanitized: any = {};
-      for (const key in obj) {
-        if (obj.hasOwnProperty(key)) {
-          sanitized[key] = sanitizeObject(obj[key]);
-        }
+      const sanitized: Record<string, unknown> = {};
+      for (const key of Object.keys(obj as Record<string, unknown>)) {
+        sanitized[key] = sanitizeObject((obj as Record<string, unknown>)[key]);
       }
       return sanitized;
     }
-
     return obj;
   };
 

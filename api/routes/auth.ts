@@ -247,8 +247,11 @@ router.post(
   [
     body("email")
       .isEmail()
-      .normalizeEmail()
-      .withMessage("Invalid email format"),
+      .withMessage("Invalid email format")
+      .bail()
+      .customSanitizer((v) =>
+        typeof v === "string" ? v.trim().toLowerCase() : v
+      ),
     body("password")
       .isLength({ min: parseInt(process.env.MIN_PASSWORD_LENGTH || "12") })
       .withMessage(
@@ -350,8 +353,11 @@ router.post(
   [
     body("email")
       .isEmail()
-      .normalizeEmail()
-      .withMessage("Invalid email format"),
+      .withMessage("Invalid email format")
+      .bail()
+      .customSanitizer((v) =>
+        typeof v === "string" ? v.trim().toLowerCase() : v
+      ),
     body("password").notEmpty().withMessage("Password is required"),
   ],
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
@@ -386,6 +392,9 @@ router.post(
         "SELECT id, email, password_hash, name, first_login, last_login FROM users WHERE email = ?",
         [normalizedEmail]
       );
+      console.log("email", email);
+      console.log("User login attempt", { email: normalizedEmail });
+      console.log("rows", rows);
 
       if (rows.length === 0) {
         recordFailedAttempt(normalizedEmail);
